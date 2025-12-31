@@ -1,1738 +1,2636 @@
-# Documentation
+# FCA-Unofficial - Complete API Documentation
 
-* [`login`](#login)
-* [`api.addUserToGroup`](#addUserToGroup)
-* [`api.changeAdminStatus`](#changeAdminStatus)
-* [`api.changeArchivedStatus`](#changeArchivedStatus)
-* [`api.changeBlockedStatus`](#changeBlockedStatus)
-* [`api.changeGroupImage`](#changeGroupImage)
-* [`api.changeNickname`](#changeNickname)
-* [`api.changeThreadColor`](#changeThreadColor)
-* [`api.changeThreadEmoji`](#changeThreadEmoji)
-* [`api.createNewGroup`](#createNewGroup)
-* [`api.createPoll`](#createPoll)
-* [`api.deleteMessage`](#deleteMessage)
-* [`api.deleteThread`](#deleteThread)
-* [`api.forwardAttachment`](#forwardAttachment)
-* [`api.getAppState`](#getAppState)
-* [`api.getCurrentUserID`](#getCurrentUserID)
-* [`api.getEmojiUrl`](#getEmojiUrl)
-* [`api.getFriendsList`](#getFriendsList)
-* [`api.getThreadHistory`](#getThreadHistory)
-* [`api.getThreadInfo`](#getThreadInfo)
-* [`api.getThreadList`](#getThreadList)
-* [`api.getThreadPictures`](#getThreadPictures)
-* [`api.getUserID`](#getUserID)
-* [`api.getUserInfo`](#getUserInfo)
-* [`api.handleMessageRequest`](#handleMessageRequest)
-* [`api.listenMqtt`](#listenMqtt)
-* [`api.logout`](#logout)
-* [`api.markAsDelivered`](#markAsDelivered)
-* [`api.markAsRead`](#markAsRead)
-* [`api.markAsReadAll`](#markAsReadAll)
-* [`api.markAsSeen`](#markAsSeen)
-* [`api.muteThread`](#muteThread)
-* [`api.removeUserFromGroup`](#removeUserFromGroup)
-* [`api.resolvePhotoUrl`](#resolvePhotoUrl)
-* [`api.searchForThread`](#searchForThread)
-* [`api.sendMessage`](#sendMessage)
-* [`api.sendTypingIndicator`](#sendTypingIndicator)
-* [`api.setMessageReaction`](#setMessageReaction)
-* [`api.setOptions`](#setOptions)
-* [`api.setTitle`](#setTitle)
-* [`api.threadColors`](#threadColors)
-* [`api.unsendMessage`](#unsendMessage)
+## Introduction
 
----------------------------------------
+**@dongdev/fca-unofficial** is an unofficial Node.js library for interacting with Facebook Messenger by emulating browser behavior. This library allows you to create chat bots and automate tasks on Facebook Messenger.
 
-### Password safety
+## Installation
 
-**Read this** before you _copy+paste_ examples from below.
-
-You should not store Facebook password in your scripts.
-There are few good reasons:
-* People who are standing behind you may look at your "code" and get your password if it is on the screen
-* Backups of source files may be readable by someone else. "_There is nothing secret in my code, why should I ever password protect my backups_"
-* You can't push your code to Github (or any onther service) without removing your password from the file.  Remember: Even if you undo your accidential commit with password, Git doesn't delete it, that commit is just not used but is still readable by everybody.
-* If you change your password in the future (maybe it leaked because _someone_ stored password in source file… oh… well…) you will have to change every occurrence in your scripts
-
-Preferred method is to have `login.js` that saves `AppState` to a file and then use that file from all your scripts.
-This way you can put password in your code for a minute, login to facebook and then remove it.
-
-If you want to be even more safe:  _login.js_ can get password with `require("readline")` or with environment variables like this:
-```js
-var credentials = {
-    email: process.env.FB_EMAIL,
-    password: process.env.FB_PASSWORD
-}
-```
 ```bash
-FB_EMAIL="john.doe@example.com"
-FB_PASSWORD="MySuperHardP@ssw0rd"
-nodejs login.js
+npm install @dongdev/fca-unofficial@latest
 ```
 
----------------------------------------
+---
 
-<a name="login"></a>
-### login(credentials[, options][, callback])
+## 1. LOGIN
 
-This function is returned by `require(...)` and is the main entry point to the API.
+### 1.1. Login with Email & Password
 
-It allows the user to log into facebook given the right credentials.
+```javascript
+const login = require("@dongdev/fca-unofficial");
 
-Return a Promise that will resolve if logged in successfully, or reject if failed to login. (will not resolve or reject if callback is supplied!)
+const credentials = {
+    email: "your_email@example.com",
+    password: "your_password"
+};
 
-If `callback` is supplied:
-
-* `callback` will be called with a `null` object (for potential errors) and with an object containing all the available functions if logged in successfully.
-
-* `callback` will be called with an error object if failed to login.
-
-If `login-approval` error was thrown: Inside error object is `continue` function, you can call that function with 2FA code. The behaviour of this function depends on how you call `login` with:
-
-* If `callback` is not supplied (using `Promise`), this function will return a `Promise` that behaves like `Promise` received from `login`.
-
-* If `callback` is supplied, this function will still return a `Promise`, but it will not resolve. Instead, the result is called to `callback`.
-
-__Arguments__
-
-* `credentials`: An object containing the fields `email` and `password` used to login, __*or*__ an object containing the field `appState`.
-* `options`: An object representing options to use when logging in (as described in [api.setOptions](#setOptions)).
-* `callback(err, api)`: A callback called when login is done (successful or not). `err` is an object containing a field `error`.
-
-__Example (Email & Password)__
-
-```js
-const login = require("fca-unofficial");
-
-login({email: "FB_EMAIL", password: "FB_PASSWORD"}, (err, api) => {
-    if(err) return console.error(err);
-    // Here you can use the api
+login(credentials, (err, api) => {
+    if (err) {
+        console.error("Login error:", err);
+        return;
+    }
+    console.log("Login successful!");
 });
 ```
 
-__Example (Email & Password then save appState to file)__
+### 1.2. Login with 2FA (Two-Factor Authentication)
 
-```js
-const fs = require("fs");
-const login = require("fca-unofficial");
+When your account has 2FA enabled, you need to provide the 2FA code:
 
-login({email: "FB_EMAIL", password: "FB_PASSWORD"}, (err, api) => {
-    if(err) return console.error(err);
-
-    fs.writeFileSync('appstate.json', JSON.stringify(api.getAppState()));
-});
-```
-
-__Example (AppState loaded from file)__
-
-```js
-const fs = require("fs");
-const login = require("fca-unofficial");
-
-login({appState: JSON.parse(fs.readFileSync('appstate.json', 'utf8'))}, (err, api) => {
-    if(err) return console.error(err);
-    // Here you can use the api
-});
-```
-
-__Login Approvals (2-Factor Auth)__: When you try to login with Login Approvals enabled, your callback will be called with an error `'login-approval'` that has a `continue` function that accepts the approval code as a `string` or a `number`.
-
-__Example__:
-
-```js
-const fs = require("fs");
-const login = require("fca-unofficial");
+```javascript
+const login = require("@dongdev/fca-unofficial");
 const readline = require("readline");
 
-var rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout
+const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
 });
 
-const obj = {email: "FB_EMAIL", password: "FB_PASSWORD"};
-login(obj, (err, api) => {
-    if(err) {
-        switch (err.error) {
-            case 'login-approval':
-                console.log('Enter code > ');
-                rl.on('line', (line) => {
-                    err.continue(line);
-                    rl.close();
-                });
-                break;
-            default:
-                console.error(err);
+const credentials = {
+    email: "your_email@example.com",
+    password: "your_password"
+};
+
+login(credentials, (err, api) => {
+    if (err) {
+        // If 2FA is required
+        if (err.error === 'login-approval') {
+            console.log("2FA code required!");
+
+            rl.question("Enter 2FA code: ", (code) => {
+                err.continue(code);
+                rl.close();
+            });
+        } else {
+            console.error("Login error:", err);
         }
         return;
     }
 
-    // Logged in!
+    console.log("Login successful!");
 });
 ```
 
-__Review Recent Login__: Sometimes Facebook will ask you to review your recent logins. This means you've recently logged in from a unrecognized location. This will will result in the callback being called with an error `'review-recent-login'` by default. If you wish to automatically approve all recent logins, you can set the option `forceLogin` to `true` in the `loginOptions`.
+### 1.3. Login with AppState (Recommended)
 
+AppState is saved cookies and session data. Login with AppState helps avoid entering password each time and reduces checkpoint risk.
 
----------------------------------------
+#### Get and Save AppState:
 
-<a name="addUserToGroup"></a>
-### api.addUserToGroup(userID, threadID[, callback])
-
-Adds a user (or array of users) to a group chat.
-
-__Arguments__
-
-* `userID`: User ID or array of user IDs.
-* `threadID`: Group chat ID.
-* `callback(err)`: A callback called when the query is done (either with an error or with no arguments).
-
----------------------------------------
-
-<a name="changeAdminStatus"></a>
-### api.changeAdminStatus(threadID, adminIDs, adminStatus)
-
-Given a adminID, or an array of adminIDs, will set the admin status of the user(s) to `adminStatus`.
-
-__Arguments__
-* `threadID`: ID of a group chat (can't use in one-to-one conversations)
-* `adminIDs`: The id(s) of users you wish to admin/unadmin (string or an array).
-* `adminStatus`: Boolean indicating whether the user(s) should be promoted to admin (`true`) or demoted to a regular user (`false`).
-
-__Example__
-
-```js
+```javascript
 const fs = require("fs");
-const login = require("fca-unofficial");
+const login = require("@dongdev/fca-unofficial");
 
-login({appState: JSON.parse(fs.readFileSync('appstate.json', 'utf8'))}, async function(err, api) {
-    if (err) return console.error(err);
+const credentials = {
+    email: "your_email@example.com",
+    password: "your_password"
+};
 
-    let threadID = "0000000000000000";
-    let newAdmins = ["111111111111111", "222222222222222"];
-    await api.changeAdminStatus(threadID, newAdmins, true);
+login(credentials, (err, api) => {
+    if (err) {
+        console.error("Login error:", err);
+        return;
+    }
 
-    let adminToRemove = "333333333333333";
-    await api.changeAdminStatus(threadID, adminToRemove, false);
-
-});
-
-```
-
----------------------------------------
-
-<a name="changeArchivedStatus"></a>
-### api.changeArchivedStatus(threadOrThreads, archive[, callback])
-
-Given a threadID, or an array of threadIDs, will set the archive status of the threads to `archive`. Archiving a thread will hide it from the logged-in user's inbox until the next time a message is sent or received.
-
-__Arguments__
-* `threadOrThreads`: The id(s) of the threads you wish to archive/unarchive.
-* `archive`: Boolean indicating the new archive status to assign to the thread(s).
-* `callback(err)`: A callback called when the query is done (either with an error or null).
-
-__Example__
-
-```js
-const fs = require("fs");
-const login = require("fca-unofficial");
-
-login({appState: JSON.parse(fs.readFileSync('appstate.json', 'utf8'))}, (err, api) => {
-    if(err) return console.error(err);
-
-    api.changeArchivedStatus("000000000000000", true, (err) => {
-        if(err) return console.error(err);
-    });
+    // Save AppState to file
+    try {
+        const appState = api.getAppState();
+        fs.writeFileSync("appstate.json", JSON.stringify(appState, null, 2));
+        console.log("✅ AppState saved!");
+    } catch (error) {
+        console.error("Error saving AppState:", error);
+    }
 });
 ```
 
----------------------------------------
+#### Use Saved AppState:
 
-<a name="changeBlockedStatus"></a>
-### api.changeBlockedStatus(userID, block[, callback])
-
-Prevents a user from privately contacting you. (Messages in a group chat will still be seen by both parties).
-
-__Arguments__
-
-* `userID`: User ID.
-* `block`: Boolean indicating whether to block or unblock the user (true for block).
-* `callback(err)`: A callback called when the query is done (either with an error or with no arguments).
-
----------------------------------------
-
-<a name="changeGroupImage"></a>
-### api.changeGroupImage(image, threadID[, callback])
-
-Will change the group chat's image to the given image.
-
-__Arguments__
-* `image`: File stream of image.
-* `threadID`: String representing the ID of the thread.
-* `callback(err)`: A callback called when the change is done (either with an error or null).
-
-__Example__
-
-```js
+```javascript
 const fs = require("fs");
-const login = require("fca-unofficial");
+const login = require("@dongdev/fca-unofficial");
 
-login({appState: JSON.parse(fs.readFileSync('appstate.json', 'utf8'))}, (err, api) => {
-    if(err) return console.error(err);
+const credentials = {
+    appState: JSON.parse(fs.readFileSync("appstate.json", "utf8"))
+};
 
-    api.changeGroupImage(fs.createReadStream("./avatar.png"), "000000000000000", (err) => {
-        if(err) return console.error(err);
-    });
+login(credentials, (err, api) => {
+    if (err) {
+        console.error("Login error:", err);
+        return;
+    }
+
+    console.log("Login successful with AppState!");
 });
 ```
 
----------------------------------------
+**Note:** You can use [c3c-fbstate](https://github.com/c3cbot/c3c-fbstate) tool to get AppState from browser.
 
-<a name="changeNickname"></a>
-### api.changeNickname(nickname, threadID, participantID[, callback])
+---
 
-Will change the thread user nickname to the one provided.
+## 2. CONFIGURATION (Options)
 
-__Arguments__
-* `nickname`: String containing a nickname. Leave empty to reset nickname.
-* `threadID`: String representing the ID of the thread.
-* `participantID`: String representing the ID of the user.
-* `callback(err)`: An optional callback called when the change is done (either with an error or null).
+After login, you can configure API options:
 
-__Example__
+```javascript
+api.setOptions({
+    // Listen to events (add/remove members, change group name, etc.)
+    listenEvents: true,
 
-```js
-const fs = require("fs");
-const login = require("fca-unofficial");
+    // Listen to your own messages
+    selfListen: false,
 
-login({appState: JSON.parse(fs.readFileSync('appstate.json', 'utf8'))}, (err, api) => {
-    if(err) return console.error(err);
+    // Auto mark messages as read
+    autoMarkRead: false,
 
-    api.changeNickname("Example", "000000000000000", "000000000000000", (err) => {
-        if(err) return console.error(err);
-    });
+    // Auto mark as delivered
+    autoMarkDelivery: false,
+
+    // Online status (true/false)
+    online: true,
+
+    // Log level (silent/error/warn/info/verbose)
+    logLevel: "info",
+
+    // Custom user agent
+    userAgent: "Mozilla/5.0..."
 });
 ```
 
----------------------------------------
+---
 
-<a name="changeThreadColor"></a>
-### api.changeThreadColor(color, threadID[, callback])
+## 3. DETAILED API METHODS
 
-Will change the thread color to the given hex string color ("#0000ff"). Set it
-to empty string if you want the default.
+### 3.1. sendMessage - Send Message
 
-Note: the color needs to start with a "#".
+Send message to user or group chat.
 
-__Arguments__
-* `color`: String representing a theme ID (a list of theme ID can be found at `api.threadColors`).
-* `threadID`: String representing the ID of the thread.
-* `callback(err)`: A callback called when the change is done (either with an error or null).
+#### Syntax:
+```javascript
+api.sendMessage(message, threadID, [messageID], [callback])
+```
 
-__Example__
+#### Parameters:
+- `message`: Message content (string or object)
+- `threadID`: Conversation ID (user ID or group ID)
+- `messageID`: (Optional) Message ID to reply to
+- `callback`: (Optional) Callback function `(err, messageInfo)`
 
-```js
-const fs = require("fs");
-const login = require("fca-unofficial");
+#### Basic Example:
 
-login({appState: JSON.parse(fs.readFileSync('appstate.json', 'utf8'))}, (err, api) => {
-    if(err) return console.error(err);
-
-    api.changeThreadColor("#0000ff", "000000000000000", (err) => {
-        if(err) return console.error(err);
-    });
+```javascript
+api.sendMessage("Hello!", "100012345678901", (err, messageInfo) => {
+    if (err) {
+        console.error("Send message error:", err);
+        return;
+    }
+    console.log("Message sent, ID:", messageInfo.messageID);
 });
 ```
 
----------------------------------------
+#### Send Messages with Various Content Types:
 
-<a name="changeThreadEmoji"></a>
-### api.changeThreadEmoji(emoji, threadID[, callback])
+```javascript
+// 1. Simple text message
+api.sendMessage("Hello World", threadID);
 
-Will change the thread emoji to the one provided.
+// 2. Send sticker
+api.sendMessage({
+    sticker: "767334476655547"  // Sticker ID
+}, threadID);
 
-Note: The UI doesn't play nice with all emoji.
+// 3. Send emoji with size
+api.sendMessage({
+    body: "Awesome!",
+    emoji: "👍",
+    emojiSize: "large"  // small, medium, large
+}, threadID);
 
-__Arguments__
-* `emoji`: String containing a single emoji character.
-* `threadID`: String representing the ID of the thread.
-* `callback(err)`: A callback called when the change is done (either with an error or null).
-
-__Example__
-
-```js
+// 4. Send file/image
 const fs = require("fs");
-const login = require("fca-unofficial");
+api.sendMessage({
+    body: "Here is an image",
+    attachment: fs.createReadStream("./image.jpg")
+}, threadID);
 
-login({appState: JSON.parse(fs.readFileSync('appstate.json', 'utf8'))}, (err, api) => {
-    if(err) return console.error(err);
+// 5. Send multiple files
+api.sendMessage({
+    body: "Multiple attachments",
+    attachment: [
+        fs.createReadStream("./image1.jpg"),
+        fs.createReadStream("./image2.jpg"),
+        fs.createReadStream("./document.pdf")
+    ]
+}, threadID);
 
-    api.changeThreadEmoji("💯", "000000000000000", (err) => {
-        if(err) return console.error(err);
-    });
-});
-```
+// 6. Send URL
+api.sendMessage({
+    body: "Check this link",
+    url: "https://example.com"
+}, threadID);
 
----------------------------------------
+// 7. Reply to message
+api.sendMessage({
+    body: "This is a reply"
+}, threadID, messageID);
 
-<a name="createNewGroup"></a>
-### api.createNewGroup(participantIDs[, groupTitle][, callback])
-
-Create a new group chat.
-
-__Arguments__
-* `participantIDs`: An array containing participant IDs. (*Length must be >= 2*)
-* `groupTitle`: The title of the new group chat.
-* `callback(err, threadID)`: A callback called when created.
-
----------------------------------------
-
-<a name="createPoll"></a>
-### api.createPoll(title, threadID[, options][, callback]) (*temporary deprecated because Facebook is updating this feature*)
-
-Creates a poll with the specified title and optional poll options, which can also be initially selected by the logged-in user.
-
-__Arguments__
-* `title`: String containing a title for the poll.
-* `threadID`: String representing the ID of the thread.
-* `options`: An optional `string : bool` dictionary to specify initial poll options and their initial states (selected/not selected), respectively.
-* `callback(err)`: An optional callback called when the poll is posted (either with an error or null) - can omit the `options` parameter and use this as the third parameter if desired.
-
-__Example__
-
-```js
-const fs = require("fs");
-const login = require("fca-unofficial");
-
-login({appState: JSON.parse(fs.readFileSync('appstate.json', 'utf8'))}, (err, api) => {
-    if(err) return console.error(err);
-
-    api.createPoll("Example Poll", "000000000000000", {
-        "Option 1": false,
-        "Option 2": true
-    }, (err) => {
-        if(err) return console.error(err);
-    });
-});
-```
-
----------------------------------------
-
-<a name="deleteMessage"></a>
-### api.deleteMessage(messageOrMessages[, callback])
-
-Takes a messageID or an array of messageIDs and deletes the corresponding message.
-
-__Arguments__
-* `messageOrMessages`: A messageID string or messageID string array
-* `callback(err)`: A callback called when the query is done (either with an error or null).
-
-__Example__
-```js
-const fs = require("fs");
-const login = require("fca-unofficial");
-
-login({appState: JSON.parse(fs.readFileSync('appstate.json', 'utf8'))}, (err, api) => {
-    if(err) return console.error(err);
-
-    api.listen((err, message) => {
-        if(message.body) {
-            api.sendMessage(message.body, message.threadID, (err, messageInfo) => {
-                if(err) return console.error(err);
-
-                api.deleteMessage(messageInfo.messageID);
-            });
+// 8. Mention users
+api.sendMessage({
+    body: "Hello @User1 and @User2!",
+    mentions: [
+        {
+            tag: "@User1",
+            id: "100012345678901",
+            fromIndex: 6  // Starting position of @User1
+        },
+        {
+            tag: "@User2",
+            id: "100012345678902",
+            fromIndex: 17
         }
-    });
-});
+    ]
+}, threadID);
 ```
 
----------------------------------------
+---
 
-<a name="deleteThread"></a>
-### api.deleteThread(threadOrThreads[, callback])
+### 3.2. listenMqtt - Listen for Messages
 
-Given a threadID, or an array of threadIDs, will delete the threads from your account. Note that this does *not* remove the messages from Facebook's servers - anyone who hasn't deleted the thread can still view all of the messages.
+Listen for messages and events from Facebook Messenger (using MQTT).
 
-__Arguments__
-
-* `threadOrThreads` - The id(s) of the threads you wish to remove from your account.
-* `callback(err)` - A callback called when the operation is done, maybe with an object representing an error.
-
-__Example__
-
-```js
-const fs = require("fs");
-const login = require("fca-unofficial");
-
-login({appState: JSON.parse(fs.readFileSync('appstate.json', 'utf8'))}, (err, api) => {
-    if(err) return console.error(err);
-
-    api.deleteThread("000000000000000", (err) => {
-        if(err) return console.error(err);
-    });
-});
+#### Syntax:
+```javascript
+const stopListening = api.listenMqtt(callback);
 ```
 
----------------------------------------
+#### Parameters:
+- `callback`: Function `(err, event)` called when new message/event arrives
 
-<a name="forwardAttachment"></a>
-### api.forwardAttachment(attachmentID, userOrUsers[, callback])
+#### Example:
 
-Forwards corresponding attachment to given userID or to every user from an array of userIDs
+```javascript
+const stopListening = api.listenMqtt((err, event) => {
+    if (err) {
+        console.error("Listen error:", err);
+        return;
+    }
 
-__Arguments__
-* `attachmentID`: The ID field in the attachment object. Recorded audio cannot be forwarded.
-* `userOrUsers`: A userID string or usersID string array
-* `callback(err)`: A callback called when the query is done (either with an error or null).
+    // Handle events
+    switch (event.type) {
+        case "message":
+            console.log("New message:", event.body);
+            console.log("From user:", event.senderID);
+            console.log("In conversation:", event.threadID);
 
----------------------------------------
+            // Reply to message
+            if (event.body === "Hi") {
+                api.sendMessage("Hello!", event.threadID);
+            }
+            break;
 
-<a name="getAppState"></a>
-### api.getAppState()
+        case "event":
+            console.log("Event:", event.logMessageType);
+            // log_message_type can be:
+            // - log:subscribe (member added)
+            // - log:unsubscribe (member removed)
+            // - log:thread-name (group name changed)
+            // - log:thread-icon (group icon changed)
+            // - log:thread-color (chat color changed)
+            break;
 
-Returns current appState which can be saved to a file or stored in a variable.
+        case "typ":
+            console.log(event.from, "is typing...");
+            break;
 
----------------------------------------
-
-<a name="getCurrentUserID"></a>
-### api.getCurrentUserID()
-
-Returns the currently logged-in user's Facebook user ID.
-
----------------------------------------
-
-<a name="getEmojiUrl"></a>
-### api.getEmojiUrl(c, size[, pixelRatio])
-
-Returns the URL to a Facebook Messenger-style emoji image asset.
-
-__note__: This function will return a URL regardless of whether the image at the URL actually exists.
-This can happen if, for example, Messenger does not have an image asset for the requested emoji.
-
-__Arguments__
-
-* `c` - The emoji character
-* `size` - The width and height of the emoji image; supported sizes are 32, 64, and 128
-* `pixelRatio` - The pixel ratio of the emoji image; supported ratios are '1.0' and '1.5' (default is '1.0')
-
-__Example__
-
-```js
-const fs = require("fs");
-const login = require("fca-unofficial");
-
-login({appState: JSON.parse(fs.readFileSync('appstate.json', 'utf8'))}, (err, api) => {
-    if(err) return console.error(err);
-
-    // Prints https://static.xx.fbcdn.net/images/emoji.php/v8/z9c/1.0/128/1f40d.png
-    console.log('Snake emoji, 128px (128x128 with pixel ratio of 1.0');
-    console.log(api.getEmojiUrl('\ud83d\udc0d', 128));
-
-    // Prints https://static.xx.fbcdn.net/images/emoji.php/v8/ze1/1.5/128/1f40d.png
-    console.log('Snake emoji, 192px (128x128 with pixel ratio of 1.5');
-    console.log(api.getEmojiUrl('\ud83d\udc0d', 128, '1.5'));
+        case "read_receipt":
+            console.log("Message read by:", event.reader);
+            break;
+    }
 });
+
+// Stop listening
+// stopListening();
 ```
 
----------------------------------------
+#### Event Object Details:
 
-<a name="getFriendsList"></a>
-### api.getFriendsList(callback)
+```javascript
+// Event type: "message"
+{
+    type: "message",
+    threadID: "1234567890",
+    messageID: "mid.xxx",
+    senderID: "100012345678901",
+    body: "Message content",
+    args: ["Message", "content"],  // Array of words from body (split by whitespace)
+    attachments: [],  // Array of attachments
+    mentions: {},     // Object of mentions
+    timestamp: 1234567890000,
+    isGroup: false,   // true if group chat
+    isUnread: false,  // Whether message is unread
+    participantIDs: ["100012345678901"]  // Array of participant IDs
+}
 
-Returns an array of objects with some information about your friends.
+// Event type: "event"
+{
+    type: "event",
+    threadID: "1234567890",
+    logMessageType: "log:subscribe",
+    logMessageData: {...},
+    author: "100012345678901"
+}
 
-__Arguments__
+// Event type: "typ" (typing)
+{
+    type: "typ",
+    threadID: "1234567890",
+    from: "100012345678901",
+    isTyping: true
+}
 
-* `callback(err, arr)` - A callback called when the query is done (either with an error or with an confirmation object). `arr` is an array of objects with the following fields: `alternateName`, `firstName`, `gender`, `userID`, `isFriend`, `fullName`, `profilePicture`, `type`, `profileUrl`, `vanity`, `isBirthday`.
-
-__Example__
-
-```js
-const fs = require("fs");
-const login = require("fca-unofficial");
-
-login({appState: JSON.parse(fs.readFileSync('appstate.json', 'utf8'))}, (err, api) => {
-    if(err) return console.error(err);
-
-    api.getFriendsList((err, data) => {
-        if(err) return console.error(err);
-
-        console.log(data.length);
-    });
-});
-```
-
----------------------------------------
-
-<a name="getThreadHistory"></a>
-### api.getThreadHistory(threadID, amount, timestamp, callback)
-
-Takes a threadID, number of messages, a timestamp, and a callback.
-
-__note__: if you're getting a 500 error, it's possible that you're requesting too many messages. Try reducing that number and see if that works.
-
-__Arguments__
-* `threadID`: A threadID corresponding to the target chat
-* `amount`: The amount of messages to *request*
-* `timestamp`: Used to described the time of the most recent message to load. If timestamp is `undefined`, facebook will load the most recent messages.
-* `callback(error, history)`: If error is null, history will contain an array of message objects.
-
-__Example__
-
-To load 50 messages at a time, we can use `undefined` as the timestamp to retrieve the most recent messages and use the timestamp of the earliest message to load the next 50.
-
-```js
-var timestamp = undefined;
-
-function loadNextThreadHistory(api){
-    api.getThreadHistory(threadID, 50, timestamp, (err, history) => {
-        if(err) return console.error(err);
-
-        /*
-            Since the timestamp is from a previous loaded message,
-            that message will be included in this history so we can discard it unless it is the first load.
-        */
-        if(timestamp != undefined) history.pop();
-
-        /*
-            Handle message history
-        */
-
-        timestamp = history[0].timestamp;
-    });
+// Event type: "read_receipt" (read)
+{
+    type: "read_receipt",
+    threadID: "1234567890",
+    reader: "100012345678901",
+    time: 1234567890000
 }
 ```
 
----------------------------------------
+---
 
-<a name="getThreadInfo"></a>
-### api.getThreadInfo(threadID[, callback])
+### 3.3. Middleware System - Filter and Process Events
 
-Takes a threadID and a callback.  Works for both single-user and group threads.
+The middleware system allows you to intercept, filter, and modify events before they are emitted to your callback. This is useful for logging, rate limiting, message filtering, auto-replies, and more.
 
-__Arguments__
-* `threadID`: A threadID corresponding to the target thread.
-* `callback(err, info)`: If `err` is `null`, `info` will contain the following properties:
+#### Syntax:
+```javascript
+// Add middleware
+const removeMiddleware = api.useMiddleware(middlewareFunction);
+const removeMiddleware = api.useMiddleware("middlewareName", middlewareFunction);
 
-| Key   |      Description      |
-|----------|:-------------:|
-| threadID | ID of the thread |
-| participantIDs |    Array of user IDs in the thread   |
-| threadName | Name of the thread. Usually the name of the user. In group chats, this will be empty if the name of the group chat is unset. |
-| userInfo | An array contains info of members, which has the same structure as [`getUserInfo`](#getUserInfo), but add a key `id`, contain ID of member currently at. |
-| nicknames |    Map of nicknames for members of the thread. If there are no nicknames set, this will be null.   |
-| unreadCount | Number of unread messages |
-| messageCount | Number of messages |
-| imageSrc | URL to the group chat photo. Null if unset or a 1-1 thread. |
-| timestamp | Timestamp of last activity |
-| muteUntil | Timestamp at which the thread will no longer be muted. The timestamp will be -1 if the thread is muted indefinitely or null if the thread is not muted. |
-| isGroup | boolean, true if this thread is a group thread (more than 2 participants). |
-| isSubscribed |  |
-| folder | The folder that the thread is in. Can be one of: <ul><li>'inbox'</li><li>'archive'</li></ul> |
-| isArchived | True if the thread is archived, false if not |
-| cannotReplyReason | If you cannot reply to this thread, this will be a string stating why. Otherwise it will be null. |
-| lastReadTimestamp | Timestamp of the last message that is marked as 'read' by the current user. |
-| emoji | Object with key 'emoji' whose value is the emoji unicode character. Null if unset. |
-| color | String form of the custom color in hexadecimal form. |
-| adminIDs | Array of user IDs of the admins of the thread. Empty array if unset. |
-| approvalMode | `true` or `false`, used to check if this group requires admin approval to add users |
-| approvalQueue | Array of object that has the following keys: <ul><li>`inviterID`: ID of the user invited the person to the group</li><li>`requesterID`: ID of the person waiting to be approved</li><li>`timestamp`: Request timestamp</li></ul> |
+// Remove middleware
+api.removeMiddleware(identifier); // identifier can be name (string) or function
 
----------------------------------------
+// Clear all middleware
+api.clearMiddleware();
 
-<a name="getThreadList"></a>
-### api.getThreadList(limit, timestamp, tags, callback)
+// List middleware
+const names = api.listMiddleware();
 
-Returns information about the user's threads.
+// Enable/disable middleware
+api.setMiddlewareEnabled("middlewareName", true); // enable
+api.setMiddlewareEnabled("middlewareName", false); // disable
 
-__Arguments__
+// Get middleware count
+const count = api.middlewareCount;
+```
 
-* `limit`: Limit the number of threads to fetch.
-* `timestamp`: Request threads *before* this date. `null` means *now*
-* `tags`: An array describing which folder to fetch. It should be one of these:
-  - `["INBOX"]` *(same as `[]`)*
-  - `["ARCHIVED"]`
-  - `["PENDING"]`
-  - `["OTHER"]`
-  - `["INBOX", "unread"]`
-  - `["ARCHIVED", "unread"]`
-  - `["PENDING", "unread"]`
-  - `["OTHER", "unread"]`
+#### Middleware Function Signature:
+```javascript
+function middleware(event, next) {
+    // event: The event object (can be modified)
+    // next: Function to continue to next middleware
+    //   - next() - continue to next middleware
+    //   - next(false) or next(null) - stop processing, don't emit event
+    //   - next(error) - emit error instead
 
-*if you find something new, let us know*
+    // Your logic here
 
-* `callback(err, list)`: Callback called when the query is done (either with an error or with a proper result). `list` is an *array* with objects with the following properties:
+    next(); // Continue to next middleware
+}
+```
 
-__Thread list__
+#### Examples:
 
-| Key                  | Description                                                 |
-|----------------------|-------------------------------------------------------------|
-| threadID             | ID of the thread                                            |
-| name                 | The name of the thread                                      |
-| unreadCount          | Amount of unread messages in thread                         |
-| messageCount         | Amount of messages in thread                                |
-| imageSrc             | Link to the thread's image or `null`                        |
-| emoji                | The default emoji in thread (classic like is `null`)        |
-| color                | Thread's message color in `RRGGBB` (default blue is `null`) |
-| nicknames            | An array of `{"userid": "1234", "nickname": "John Doe"}`    |
-| muteUntil            | Timestamp until the mute expires or `null`                  |
-| participants         | An array of participants. See below                         |
-| adminIDs             | An array of thread admin IDs                                |
-| folder               | `INBOX`, `ARCHIVED`, `PENDING` or `OTHER`                   |
-| isGroup              | `true` or `false`                                           |
-| customizationEnabled | `false` in one-to-one conversations with `Page` or `ReducedMessagingActor` |
-| participantAddMode   | currently `"ADD"` for groups and `null` otherwise           |
-| reactionsMuteMode    | `REACTIONS_NOT_MUTED` or `REACTIONS_MUTED`                  |
-| mentionsMuteMode     | `MENTIONS_NOT_MUTED` or `MENTIONS_MUTED`                    |
-| isArchived           | `true` or `false`                                           |
-| isSubscribed         | `true` or `false`                                           |
-| timestamp            | timestamp in miliseconds                                    |
-| snippet              | Snippet's text message                                      |
-| snippetAttachments   | Attachments in snippet                                      |
-| snippetSender        | ID of snippet sender                                        |
-| lastMessageTimestamp | timestamp in milliseconds                                   |
-| lastReadTimestamp    | timestamp in milliseconds or `null`                         |
-| cannotReplyReason    | `null`, `"RECIPIENTS_NOT_LOADABLE"` or `"BLOCKED"`          |
-| approvalMode         | `true` or `false`, used to check if this group requires admin approval to add users |
-
-__`participants` format__
-
-`accountType` is one of the following:
-- `"User"`
-- `"Page"`
-- `"UnavailableMessagingActor"`
-- `"ReducedMessagingActor"`
-
-(*there might be more*)
-
-<table>
-<tr>
-<th>Account type</th>
-<th>Key</th>
-<th>Description</th>
-</tr>
-<tr>
-<td rowspan="12"><code>"User"</code></td>
-<td>userID</td>
-<td>ID of user</td>
-</tr>
-<tr>
-<td>name</td>
-<td>Full name of user</td>
-</tr>
-<tr>
-<td>shortName</td>
-<td>Short name of user (most likely first name)</td>
-</tr>
-<tr>
-<td>gender</td>
-<td>Either
-<code>"MALE"</code>,
-<code>"FEMALE"</code>,
-<code>"NEUTER"</code> or
-<code>"UNKNOWN"</code>
-</td>
-</tr>
-<tr>
-<td>url</td>
-<td>URL of the user's Facebook profile</td>
-</tr>
-<tr>
-<td>profilePicture</td>
-<td>URL of the profile picture</td>
-</tr>
-<tr>
-<td>username</td>
-<td>Username of user or
-<code>null</code>
-</td>
-</tr>
-<tr>
-<td>isViewerFriend</td>
-<td>Is the user a friend of you?</td>
-</tr>
-<tr>
-<td>isMessengerUser</td>
-<td>Does the user use Messenger?</td>
-</tr>
-<tr>
-<td>isVerified</td>
-<td>Is the user verified? (Little blue tick mark)</td>
-</tr>
-<tr>
-<td>isMessageBlockedByViewer</td>
-<td>Is the user blocking messages from you?</td>
-</tr>
-<tr>
-<td>isViewerCoworker</td>
-<td>Is the user your coworker?
-</td>
-</tr>
-
-<tr>
-<td rowspan="10"><code>"Page"</code></td>
-<td>userID</td>
-<td>ID of the page</td>
-</tr>
-<tr>
-<td>name</td>
-<td>Name of the fanpage</td>
-</tr>
-<tr>
-<td>url</td>
-<td>URL of the fanpage</td>
-</tr>
-<tr>
-<td>profilePicture</td>
-<td>URL of the profile picture</td>
-</tr>
-<tr>
-<td>username</td>
-<td>Username of user or
-<code>null</code>
-</td>
-</tr>
-<tr>
-<td>acceptsMessengerUserFeedback</td>
-<td></td>
-</tr>
-<tr>
-<td>isMessengerUser</td>
-<td>Does the fanpage use Messenger?</td>
-</tr>
-<tr>
-<td>isVerified</td>
-<td>Is the fanpage verified? (Little blue tick mark)</td>
-</tr>
-<tr>
-<td>isMessengerPlatformBot</td>
-<td>Is the fanpage a bot</td>
-</tr>
-<tr>
-<td>isMessageBlockedByViewer</td>
-<td>Is the fanpage blocking messages from you?</td>
-</tr>
-
-<tr>
-<td rowspan="7"><code>"ReducedMessagingActor"</code><br />(account requres verification,<br />messages are hidden)</td>
-<td>userID</td>
-<td>ID of the user</td>
-</tr>
-<tr>
-<td>name</td>
-<td>Name of the user</td>
-</tr>
-<tr>
-<td>url</td>
-<td>
-<code>null</code>
-</td>
-</tr>
-<tr>
-<td>profilePicture</td>
-<td>URL of the default Facebook profile picture</td>
-</tr>
-<tr>
-<td>username</td>
-<td>Username of user</td>
-</td>
-</tr>
-<tr>
-<td>acceptsMessengerUserFeedback</td>
-<td></td>
-</tr>
-<tr>
-<td>isMessageBlockedByViewer</td>
-<td>Is the user blocking messages from you?</td>
-</tr>
-<tr>
-<td rowspan="7"><code>"UnavailableMessagingActor"</code><br />(account disabled/removed)</td>
-<td>userID</td>
-<td>ID of the user</td>
-</tr>
-<tr>
-<td>name</td>
-<td><em>Facebook User</em> in user's language</td>
-</tr>
-<tr>
-<td>url</td>
-<td><code>null</code></td>
-</tr>
-<tr>
-<td>profilePicture</td>
-<td>URL of the default **male** Facebook profile picture</td>
-</tr>
-<tr>
-<td>username</td>
-<td><code>null</code></td>
-</tr>
-<tr>
-<td>acceptsMessengerUserFeedback</td>
-<td></td>
-</tr>
-<tr>
-<td>isMessageBlockedByViewer</td>
-<td>Is the user blocking messages from you?</td>
-</tr>
-</table>
-
-
-In a case that some account type is not supported, we return just this *(but you can't rely on it)* and log a warning to the console:
-
-| Key          | Description             |
-|--------------|-------------------------|
-| accountType  | type, can be anything   |
-| userID       | ID of the account       |
-| name         | Name of the account     |
-
-
----------------------------------------
-
-<a name="getThreadPictures"></a>
-### api.getThreadPictures(threadID, offset, limit, callback)
-
-Returns pictures sent in the thread.
-
-__Arguments__
-
-* `threadID`: A threadID corresponding to the target chat
-* `offset`: Start index of picture to retrieve, where 0 is the most recent picture
-* `limit`: Number of pictures to get, incrementing from the offset index
-* `callback(err, arr)`: A callback called when the query is done (either with an error or with an confirmation object). `arr` is an array of objects with `uri`, `width`, and `height`.
-
----------------------------------------
-
-<a name="getUserID"></a>
-### api.getUserID(name, callback)
-
-Given the full name or vanity name of a Facebook user, event, page, group or app, the call will perform a Facebook Graph search and return all corresponding IDs (order determined by Facebook).
-
-__Arguments__
-
-* `name` - A string being the name of the item you're looking for.
-* `callback(err, obj)` - A callback called when the search is done (either with an error or with the resulting object). `obj` is an array which contains all of the items that facebook graph search found, ordered by "importance".  Each item in the array has the following properties: `userID`,`photoUrl`,`indexRank`, `name`, `isVerified`, `profileUrl`, `category`, `score`, `type` (type is generally user, group, page, event or app).
-
-__Example__
-
-```js
-const fs = require("fs");
-const login = require("fca-unofficial");
-
-login({appState: JSON.parse(fs.readFileSync('appstate.json', 'utf8'))}, (err, api) => {
-    if(err) return console.error(err);
-
-    api.getUserID("Marc Zuckerbot", (err, data) => {
-        if(err) return console.error(err);
-
-        // Send the message to the best match (best by Facebook's criteria)
-        var msg = "Hello!"
-        var threadID = data[0].userID;
-        api.sendMessage(msg, threadID);
-    });
+**1. Message Filtering - Block messages from specific users:**
+```javascript
+api.useMiddleware("blockUsers", (event, next) => {
+    if (event.type === "message") {
+        const blockedUsers = ["100012345678901", "100012345678902"];
+        if (blockedUsers.includes(event.senderID)) {
+            // Block this message
+            return next(false);
+        }
+    }
+    next(); // Continue processing
 });
 ```
 
----------------------------------------
+**2. Logging Middleware:**
+```javascript
+api.useMiddleware("logger", (event, next) => {
+    if (event.type === "message") {
+        console.log(`[${new Date().toISOString()}] Message from ${event.senderID}: ${event.body}`);
+    }
+    next(); // Continue to next middleware
+});
+```
 
-<a name="getUserInfo"></a>
-### api.getUserInfo(ids, callback)
+**3. Auto-Reply Middleware:**
+```javascript
+api.useMiddleware("autoReply", (event, next) => {
+    if (event.type === "message" && event.body.toLowerCase() === "hello") {
+        api.sendMessage("Hi there! How can I help you?", event.threadID);
+    }
+    next(); // Continue processing
+});
+```
 
-Will get some information about the given users.
+**4. Rate Limiting Middleware:**
+```javascript
+const messageCounts = {};
+const RATE_LIMIT = 10; // messages per minute
+const RATE_WINDOW = 60000; // 1 minute
 
-__Arguments__
+api.useMiddleware("rateLimit", (event, next) => {
+    if (event.type === "message") {
+        const now = Date.now();
+        const senderID = event.senderID;
 
-* `ids` - Either a string/number for one ID or an array of strings/numbers for a batched query.
-* `callback(err, obj)` - A callback called when the query is done (either with an error or with an confirmation object). `obj` is a mapping from userId to another object containing the following properties: `name`, `firstName`, `vanity` (user's chosen facebook handle, if any), `thumbSrc`, `profileUrl`, `gender`, `type` (type is generally user, group, page, event or app), `isFriend`, `isBirthday`, `searchTokens`, `alternateName`.
+        // Clean old entries
+        if (messageCounts[senderID] && messageCounts[senderID].timestamp < now - RATE_WINDOW) {
+            delete messageCounts[senderID];
+        }
 
-__Example__
+        // Initialize or increment
+        if (!messageCounts[senderID]) {
+            messageCounts[senderID] = { count: 0, timestamp: now };
+        }
+        messageCounts[senderID].count++;
 
-```js
-const fs = require("fs");
-const login = require("fca-unofficial");
+        // Check rate limit
+        if (messageCounts[senderID].count > RATE_LIMIT) {
+            console.log(`Rate limit exceeded for user ${senderID}`);
+            return next(false); // Block message
+        }
+    }
+    next();
+});
+```
 
-login({appState: JSON.parse(fs.readFileSync('appstate.json', 'utf8'))}, (err, api) => {
-    if(err) return console.error(err);
+**5. Message Transformation:**
+```javascript
+api.useMiddleware("transform", (event, next) => {
+    if (event.type === "message") {
+        // Add custom property
+        event.customProperty = "customValue";
 
-    api.getUserInfo([1, 2, 3, 4], (err, ret) => {
-        if(err) return console.error(err);
+        // Transform message body
+        if (event.body) {
+            event.body = event.body.toUpperCase();
+        }
+    }
+    next();
+});
+```
 
-        for(var prop in ret) {
-            if(ret.hasOwnProperty(prop) && ret[prop].isBirthday) {
-                api.sendMessage("Happy birthday :)", prop);
+**6. Async Middleware (Promise-based):**
+```javascript
+api.useMiddleware("asyncMiddleware", async (event, next) => {
+    if (event.type === "message") {
+        // Do async operation
+        const userInfo = await api.getUserInfo(event.senderID);
+        event.senderName = userInfo[event.senderID].name;
+    }
+    next(); // Continue
+});
+```
+
+**7. Conditional Middleware:**
+```javascript
+// Only process messages in group chats
+api.useMiddleware("groupOnly", (event, next) => {
+    if (event.type === "message" && !event.isGroup) {
+        return next(false); // Skip non-group messages
+    }
+    next();
+});
+
+// Only process messages containing specific keywords
+api.useMiddleware("keywordFilter", (event, next) => {
+    if (event.type === "message") {
+        const keywords = ["help", "support", "info"];
+        const hasKeyword = keywords.some(keyword =>
+            event.body.toLowerCase().includes(keyword)
+        );
+        if (!hasKeyword) {
+            return next(false); // Skip messages without keywords
+        }
+    }
+    next();
+});
+```
+
+**8. Remove Middleware:**
+```javascript
+// Remove by name
+api.removeMiddleware("logger");
+
+// Remove by function reference
+const myMiddleware = (event, next) => { /* ... */ };
+api.useMiddleware("myMiddleware", myMiddleware);
+// Later...
+api.removeMiddleware(myMiddleware);
+```
+
+**9. Complete Example - Bot with Multiple Middleware:**
+```javascript
+const login = require("@dongdev/fca-unofficial");
+
+login({ appState: [] }, (err, api) => {
+    if (err) return console.error(err);
+
+    // 1. Logging middleware
+    api.useMiddleware("logger", (event, next) => {
+        if (event.type === "message") {
+            console.log(`Message: ${event.body}`);
+        }
+        next();
+    });
+
+    // 2. Block spam users
+    const spamUsers = ["100012345678901"];
+    api.useMiddleware("spamFilter", (event, next) => {
+        if (event.type === "message" && spamUsers.includes(event.senderID)) {
+            return next(false);
+        }
+        next();
+    });
+
+    // 3. Auto-reply to greetings
+    api.useMiddleware("autoReply", (event, next) => {
+        if (event.type === "message") {
+            const greetings = ["hi", "hello", "hey"];
+            if (greetings.includes(event.body.toLowerCase())) {
+                api.sendMessage("Hello! How can I help?", event.threadID);
             }
         }
+        next();
     });
-});
-```
 
----------------------------------------
+    // 4. Listen for messages (middleware will process them first)
+    api.listenMqtt((err, event) => {
+        if (err) return console.error(err);
 
-<a name="threadColors"></a>
-### api.threadColors
-
-A dictionary mapping names of all currently valid thread themes to their theme ID that are accepted by [`api.changeThreadColor`](#changeThreadColor). These themes, listed below, are the ones present in the palette UI used for selecting thread themes on the Messenger client.
-
-- DefaultBlue: `196241301102133`
-- HotPink: `169463077092846`
-- AquaBlue: `2442142322678320`
-- BrightPurple: `234137870477637`
-- CoralPink: `980963458735625`
-- Orange: `175615189761153`
-- Green: `2136751179887052`
-- LavenderPurple: `2058653964378557`
-- Red: `2129984390566328`
-- Yellow: `174636906462322`
-- TealBlue: `1928399724138152`
-- Aqua: `417639218648241`
-- Mango: `930060997172551`
-- Berry: `164535220883264`
-- Citrus: `370940413392601`
-- Candy: `205488546921017`
-- ~~StarWars: `809305022860427`~~ (Facebook removed it.)
-
----------------------------------------
-
-<a name="handleMessageRequest"></a>
-### api.handleMessageRequest(threadID, accept[, callback])
-
-Accept or ignore message request(s) with thread id `threadID`.
-
-__Arguments__
-
-* `threadID`: A threadID or array of threadIDs corresponding to the target thread(s). Can be numbers or strings.
-* `accept`: Boolean indicating the new status to assign to the message request(s); true for inbox, false to others.
-* `callback(err)`: A callback called when the query is done (with an error or with null).
-
----------------------------------------
-
-<a name="listen"></a>
-### api.listen([callback])
-<a name="listenMqtt"></a>
-### api.listenMqtt([callback])
-
-Will call `callback` when a new message is received on this account.
-By default this won't receive events (joining/leaving a chat, title change etc...) but it can be activated with `api.setOptions({listenEvents: true})`.  This will by default ignore messages sent by the current account, you can enable listening to your own messages with `api.setOptions({selfListen: true})`. This returns an `EventEmitter` that contains function `stopListening` that will stop the `listen` loop and is guaranteed to prevent any future calls to the callback given to `listen`. An immediate call to `stopListening` when an error occurs will prevent the listen function to continue.
-
-If `callback` is not defined, or isn't a `Function`, you can listen to messages with event `message` and `error` from `EventEmitter` returned by this function.
-
-__Arguments__
-
-- `callback(error, message)`: A callback called every time the logged-in account receives a new message.
-
-<a name="message"></a>
-__Message__
-
-The message object will contain different fields based on its type (as determined by its `type` field). By default, the only type that will be listened for is `message`. If enabled through [setOptions](#setOptions), the message object may alternatively represent an event e.g. a read receipt. The available event types are as follows:
-
-<table>
-	<tr>
-		<th>Event Type</th>
-		<th>Field</th>
-		<th>Description</th>
-	</tr>
-	<tr>
-		<td rowspan="10">
-			<code>"message"</code><br />
-			A message was sent to a thread.
-		</td>
-		<td><code>attachments</code></td>
-		<td>An array of attachments to the message. Attachments vary in type, see the attachments table below.</td>
-	</tr>
-	<tr>
-		<td><code>body</code></td>
-		<td>The string corresponding to the message that was just received.</td>
-	</tr>
-	<tr>
-		<td><code>isGroup</code></td>
-		<td>boolean, true if this thread is a group thread (more than 2 participants).</td>
-	</tr>
-    <tr>
-        <td><code>mentions</code></td>
-        <td>An object containing people mentioned/tagged in the message in the format { id: name }</td>
-    </tr>
-	<tr>
-		<td><code>messageID</code></td>
-		<td>A string representing the message ID.</td>
-	</tr>
-	<tr>
-		<td><code>senderID</code></td>
-		<td>The id of the person who sent the message in the chat with threadID.</td>
-	</tr>
-	<tr>
-		<td><code>threadID</code></td>
-		<td>The threadID representing the thread in which the message was sent.</td>
-	</tr>
-  	<tr>
-		<td><code>isUnread</code></td>
-		<td>Boolean representing whether or not the message was read.</td>
-	</tr>
-	<tr>
-		<td><code>participantIDs</code></td>
-		<td>An array containing participant IDs.</td>
-	</tr>	
-	<tr>
-		<td><code>type</code></td>
-		<td>For this event type, this will always be the string <code>"message"</code>.</td>
-	</tr>	
-	<tr>
-		<td rowspan="7">
-			<code>"event"</code><br />
-			An event occurred within a thread. Note that receiving this event type needs to be enabled with `api.setOptions({ listenEvents: true })`
-		</td>
-		<td><code>author</code></td>
-		<td>The person who performed the event.</td>
-	</tr>
-	<tr>
-		<td><code>logMessageBody</code></td>
-		<td>String printed in the chat.</td>
-	</tr>
-	<tr>
-		<td><code>logMessageData</code></td>
-		<td>Data relevant to the event.</td>
-	</tr>
-	<tr>
-		<td><code>logMessageType</code></td>
-		<td>String representing the type of event (<code>log:subscribe</code>, <code>log:unsubscribe</code>, <code>log:thread-name</code>, <code>log:thread-color</code>, <code>log:thread-icon</code>, <code>log:user-nickname</code>, <code>log:thread-call</code>, <code>log:thread-admins</code>)</td>
-	</tr>
-	<tr>
-		<td><code>threadID</code></td>
-		<td>The threadID representing the thread in which the message was sent.</td>
-	</tr>
-	<tr>
-		<td><code>participantIDs</code></td>
-		<td>An array containing participant IDs.</td>
-	</tr>	
-	<tr>
-		<td><code>type</code></td>
-		<td>For this event type, this will always be the string <code>"event"</code>.</td>
-	</tr>
-	<tr>
-		<td rowspan="5">
-			<code>"typ"</code><br />
-			A user in a thread is typing. Note that receiving this event type needs to be enabled with `api.setOptions({ listenTyping: true })`
-		</td>
-		<td><code>from</code></td>
-		<td>ID of the user who started/stopped typing.</td>
-	</tr>
-	<tr>
-		<td><code>fromMobile</code></td>
-		<td>Boolean representing whether or not the person's using a mobile device to type.</td>
-	</tr>
-	<tr>
-		<td><code>isTyping</code></td>
-		<td>Boolean representing whether or not a person started typing.</td>
-	</tr>
-	<tr>
-		<td><code>threadID</code></td>
-		<td>The threadID representing the thread in which a user is typing.</td>
-	</tr>
-	<tr>
-		<td><code>type</code></td>
-		<td>For this event type, this will always be the string <code>"typ"</code>.</td>
-	</tr>
-	<tr>
-		<td rowspan="3">
-			<code>"read"</code><br />
-			The current API user has read a message.
-		</td>
-		<td><code>threadID</code></td>
-		<td>The threadID representing the thread in which the message was sent.</td>
-	</tr>
-	<tr>
-		<td><code>time</code></td>
-		<td>The time at which the user read the message.</td>
-	</tr>
-	<tr>
-		<td><code>type</code></td>
-		<td>For this event type, this will always be the string <code>"read"</code>.</td>
-	</tr>
-	<tr>
-		<td rowspan="4">
-			<code>"read_receipt"</code><br />
-			A user within a thread has seen a message sent by the API user.
-		</td>
-		<td><code>reader</code></td>
-		<td>ID of the user who just read the message.</td>
-	</tr>
-	<tr>
-		<td><code>threadID</code></td>
-		<td>The thread in which the message was read.</td>
-	</tr>
-	<tr>
-		<td><code>time</code></td>
-		<td>The time at which the reader read the message.</td>
-	</tr>
-	<tr>
-		<td><code>type</code></td>
-		<td>For this event type, this will always be the string <code>"read_receipt"</code>.</td>
-	</tr>
-	<tr>
-		<td rowspan="8">
-			<code>"message_reaction"</code><br />
-			A user has sent a reaction to a message.
-		</td>
-		<td><code>messageID</code></td>
-		<td>The ID of the message</td>
-	</tr>
-	<tr>
-		<td><code>offlineThreadingID</code></td>
-		<td>The offline message ID</td>
-	</tr>
-	<tr>
-		<td><code>reaction</code></td>
-		<td>Contains reaction emoji</td>
-	</tr>
-	<tr>
-		<td><code>senderID</code></td>
-		<td>ID of the author the message, where has been reaction added</td>
-	</tr>
-	<tr>
-		<td><code>threadID</code></td>
-		<td>ID of the thread where the message has been sent</td>
-	</tr>
-	<tr>
-		<td><code>timestamp</code></td>
-		<td>Unix Timestamp (in miliseconds) when the reaction was sent</td>
-	</tr>
-	<tr>
-		<td><code>type</code></td>
-		<td>For this event type, this will always be the string <code>"message_reaction"</code>.</td>
-	</tr>
-	<tr>
-		<td><code>userID</code></td>
-		<td>ID of the reaction sender</td>
-	</tr>
-	<tr>
-		<td rowspan="4"><a name="presence"></a>
-			<code>"presence"</code><br />
-			The online status of the user's friends. Note that receiving this event type needs to be enabled with <code>api.setOptions({ updatePresence: true })</code>
-		</td>
-		<td><code>statuses</code></td>
-		<td>The online status of the user. <code>0</code> means the user is idle (away for 2 minutes) and <code>2</code> means the user is online (we don't know what 1 or above 2 means...).</td>
-	</tr>
-	<tr>
-		<td><code>timestamp</code></td>
-		<td>The time when the user was last online.</td>
-	</tr>
-	<tr>
-		<td><code>type</code></td>
-		<td>For this event type, this will always be the string <code>"presence"</code>.</td>
-	</tr>
-	<tr>
-		<td><code>userID</code></td>
-		<td>The ID of the user whose status this packet is describing.</td>
-	</tr>
-	<tr>
-		<td rowspan="5">
-			<code>"message_unsend"</code><br />
-			A revoke message request for a message from a thread was received.
-		</td>
-		<td><code>threadID</code></td>
-		<td>The threadID representing the thread in which the revoke message request was received.</td>
-	</tr>
-	<tr>
-		<td><code>senderID</code></td>
-		<td>The id of the person who request to revoke message on threadID.</td>
-	</tr>
-	<tr>
-		<td><code>messageID</code></td>
-		<td>A string representing the message ID that the person request to revoke message want to.</td>
-	</tr>
-	<tr>
-		<td><code>deletionTimestamp</code></td>
-		<td>The time when the request was sent.</td>
-    </tr>
-    <tr>
-		<td><code>type</code></td>
-		<td>For this event type, this will always be the string <code>"message_unsend"</code>.</td>
-	</tr>
-	<tr>
-		<td rowspan="11">
-			<code>"message_reply"</code><br />
-			A reply message was sent to a thread.
-		</td>
-		<td><code>attachments</code></td>
-		<td>An array of attachments to the message. Attachments vary in type, see the attachments table below.</td>
-	</tr>
-	<tr>
-		<td><code>body</code></td>
-		<td>The string corresponding to the message that was just received.</td>
-	</tr>
-	<tr>
-		<td><code>isGroup</code></td>
-		<td>boolean, true if this thread is a group thread (more than 2 participants).</td>
-	</tr>
-    <tr>
-        <td><code>mentions</code></td>
-        <td>An object containing people mentioned/tagged in the message in the format { id: name }</td>
-    </tr>
-	<tr>
-		<td><code>messageID</code></td>
-		<td>A string representing the message ID.</td>
-	</tr>
-	<tr>
-		<td><code>senderID</code></td>
-		<td>The id of the person who sent the message in the chat with threadID.</td>
-	</tr>
-	<tr>
-		<td><code>threadID</code></td>
-		<td>The threadID representing the thread in which the message was sent.</td>
-	</tr>
-  	<tr>
-		<td><code>isUnread</code></td>
-		<td>Boolean representing whether or not the message was read.</td>
-	</tr>
-	<tr>
-		<td><code>type</code></td>
-		<td>For this event type, this will always be the string <code>"message_reply"</code>.</td>
-	</tr>
-	<tr>
-		<td><code>participantIDs</code></td>
-		<td>An array containing participant IDs.</td>
-	</tr>	
-	<tr>
-		<td><code>messageReply</code></td>
-		<td>An object represent a message being replied. Content inside is the same like a normal <code>"message"</code> event.</td>
-	</tr>
-</table>
-
-__Attachments__
-
-Similar to how messages can vary based on their `type`, so too can the `attachments` within `"message"` events. Each attachment will consist of an object of one of the following types:
-
-| Attachment Type | Fields |
-| --------------- | ------ |
-| `"sticker"` | `ID`, `url`, `packID`, `spriteUrl`, `spriteUrl2x`, `width`, `height`, `caption`, `description`, `frameCount`, `frameRate`, `framesPerRow`, `framesPerCol` |
-| `"file"` | `ID`, `filename`, `url`, `isMalicious`, `contentType` |
-| `"photo"` | `ID`, `filename`, `thumbnailUrl`, `previewUrl`, `previewWidth`, `previewHeight`, `largePreviewUrl`, `largePreviewWidth`, `largePreviewHeight` |
-| `"animated_image"` | `ID`, `filename`, `previewUrl`, `previewWidth`, `previewHeight`, `url`, `width`, `height` |
-| `"video"` | `ID`, `filename`, `previewUrl`, `previewWidth`, `previewHeight`, `url`, `width`, `height`, `duration`, `videoType` |
-| `"audio"` | `ID`, `filename`, `audioType`, `duration`, `url`, `isVoiceMail` |
-| `"location"` | `ID`, `latitude`, `longitude`, `image`, `width`, `height`, `url`, `address` |
-| `"share"` | `ID`, `url`, `title`, `description`, `source`, `image`, `width`, `height`, `playable`, `duration`, `playableUrl`, `subattachments`, `properties` |
-
-__Example__
-
-```js
-const fs = require("fs");
-const login = require("fca-unofficial");
-
-// Simple echo bot. He'll repeat anything that you say.
-// Will stop when you say '/stop'
-
-login({appState: JSON.parse(fs.readFileSync('appstate.json', 'utf8'))}, (err, api) => {
-    if(err) return console.error(err);
-
-    api.setOptions({listenEvents: true});
-
-    var listenEmitter = api.listen((err, event) => {
-        if(err) return console.error(err);
-
-        switch (event.type) {
-            case "message":
-                if(event.body === '/stop') {
-                    api.sendMessage("Goodbye...", event.threadID);
-                    return listenEmitter.stopListening();
-                }
-                api.markAsRead(event.threadID, (err) => {
-                    if(err) console.log(err);
-                });
-                api.sendMessage("TEST BOT: " + event.body, event.threadID);
-                break;
-            case "event":
-                console.log(event);
-                break;
+        // This callback receives events AFTER middleware processing
+        if (event.type === "message") {
+            console.log("Received message:", event.body);
         }
     });
 });
 ```
 
----------------------------------------
+#### Middleware Execution Order:
+Middleware functions are executed in the order they are added. If a middleware calls `next(false)` or `next(null)`, the event will be blocked and not emitted to your callback.
 
-<a name="logout"></a>
-### api.logout([callback])
+#### Notes:
+- Middleware only processes events, not errors (errors bypass middleware)
+- You can modify the event object in middleware (it will be passed to the next middleware and callback)
+- Middleware can be async (return a Promise)
+- Middleware can be enabled/disabled without removing them
+- The middleware system is persistent across reconnections
 
-Logs out the current user.
+---
 
-__Arguments__
+### 3.4. getUserInfo - Get User Information
 
-* `callback(err)`: A callback called when the query is done (either with an error or with null).
+Get detailed information about one or more users.
 
----------------------------------------
-
-<a name="markAsDelivered"></a>
-### api.markAsDelivered(threadID, messageID[, callback]])
-
-Given a threadID and a messageID will mark that message as delivered. If a message is marked as delivered that tells facebook servers that it was recieved.
-
-You can also mark new messages as delivered automatically. This is enabled by default. See [api.setOptions](#setOptions).
-
-__Arguments__
-
-* `threadID` - The id of the thread in which you want to mark the message as delivered.
-* `messageID` - The id of the message want to mark as delivered.
-* `callback(err)` - A callback called when the operation is done maybe with an object representing an error.
-
-__Example__
-
-```js
-const fs = require("fs");
-const login = require("facebook-chat-api");
-
-login({appState: JSON.parse(fs.readFileSync('appstate.json', 'utf8'))}, (err, api) => {
-    if(err) return console.error(err);
-
-    api.listen((err, message) => {
-        if(err) return console.error(err);
-
-        // Marks messages as delivered immediately after they're received
-        api.markAsDelivered(message.threadID, message.messageID);
-    });
-});
+#### Syntax:
+```javascript
+api.getUserInfo(userID, callback);
 ```
 
----------------------------------------
+#### Example:
 
-<a name="markAsRead"></a>
-### api.markAsRead(threadID, [read[, callback]])
-
-Given a threadID will mark all the unread messages in a thread as read. Facebook will take a couple of seconds to show that you've read the messages.
-
-You can also mark new messages as read automatically. See [api.setOptions](#setOptions). But be careful, this will make your account getting banned, especially when receiving *HUGE* amount of messages.
-
-__Arguments__
-
-* `threadID` - The id of the thread in which you want to mark the messages as read.
-* `read` - An optional boolean where `true` means to mark the message as being "read" and `false` means to mark the message as being "unread".
-* `callback(err)` - A callback called when the operation is done maybe with an object representing an error.
-
-__Example__
-
-```js
-const fs = require("fs");
-const login = require("fca-unofficial");
-
-login({appState: JSON.parse(fs.readFileSync('appstate.json', 'utf8'))}, (err, api) => {
-    if(err) return console.error(err);
-
-    api.listen((err, message) => {
-        if(err) return console.error(err);
-
-        // Marks messages as read immediately after they're received
-        api.markAsRead(message.threadID);
-    });
-});
-```
-
----------------------------------------
-
-<a name="markAsReadAll"></a>
-### api.markAsReadAll([callback])
-
-This function will mark all of messages in your inbox readed.
-
----------------------------------------
-
-<a name="markAsSeen"></a>
-### api.markAsSeen([seenTimestamp][, callback])
-
-This function will mark your entire inbox as seen (don't be confused with read!).
-
----------------------------------------
-
-<a name="muteThread"></a>
-### api.muteThread(threadID, muteSeconds[, callback])
-
-Mute a chat for a period of time, or unmute a chat.
-
-__Arguments__
-
-* `threadID` - The ID of the chat you want to mute.
-* `muteSeconds` - Mute the chat for this amount of seconds. Use `0` to unmute a chat. Use '-1' to mute a chat indefinitely.
-* `callback(err)` - A callback called when the operation is done maybe with an object representing an error.
-
-__Example__
-
-```js
-const fs = require("fs");
-const login = require("fca-unofficial");
-
-login({appState: JSON.parse(fs.readFileSync('appstate.json', 'utf8'))}, (err, api) => {
-    if(err) return console.error(err);
-
-    api.listen((err, message) => {
-        if(err) return console.error(err);
-
-        // Mute all incoming chats for one minute
-        api.muteThread(message.threadID, 60);
-    });
-});
-```
-
----------------------------------------
-
-<a name="removeUserFromGroup"></a>
-### api.removeUserFromGroup(userID, threadID[, callback])
-
-Removes a user from a group chat.
-
-__Arguments__
-
-* `userID`: User ID.
-* `threadID`: Group chat ID.
-* `callback(err)`: A callback called when the query is done (either with an error or with no arguments).
-
----------------------------------------
-
-<a name="resolvePhotoUrl"></a>
-### api.resolvePhotoUrl(photoID, callback)
-
-Resolves the URL to the full-size photo, given its ID. This function is useful for retrieving the full-size photo URL
-of image attachments in messages, returned by [`api.getThreadHistory`](#getThreadHistory).
-
-__Arguments__
-
-* `photoID`: Photo ID.
-* `callback(err, url)`: A callback called when the query is done (either with an error or with the photo's URL). `url` is a string with the photo's URL.
-
----------------------------------------
-
-<a name="searchForThread"></a>
-### api.searchForThread(name, callback)
-
-> This part is outdated.
-> see #396
-
-Takes a chat title (thread name) and returns matching results as a formatted threads array (ordered according to Facebook).
-
-__Arguments__
-* `name`: A messageID string or messageID string array
-* `callback(err, obj)`: A callback called when the query is done (either with an error or a thread object). The object passed in the callback has the following shape: `threadID`, <del>`participants`</del>, `participantIDs`, `formerParticipants`, `name`, `nicknames`, `snippet`, `snippetHasAttachment`, `snippetAttachments`, `snippetSender`, `unreadCount`, `messageCount`, `imageSrc`, `timestamp`, `serverTimestamp`, `muteSettings`, `isCanonicalUser`, `isCanonical`, `canonicalFbid`, `isSubscribed`, `rootMessageThreadingID`, `folder`, `isArchived`, `recipientsLoadable`, `hasEmailParticipant`, `readOnly`, `canReply`, `composerEnabled`, `blockedParticipants`, `lastMessageID`
-
----------------------------------------
-
-<a name="sendMessage"></a>
-### api.sendMessage(message, threadID[, callback][, messageID])
-
-Sends the given message to the threadID.
-
-__Arguments__
-
-* `message`: A string (for backward compatibility) or a message object as described below.
-* `threadID`: A string, number, or array representing a thread. It happens to be someone's userID in the case of a one to one conversation or an array of userIDs when starting a new group chat.
-* `callback(err, messageInfo)`: (Optional) A callback called when sending the message is done (either with an error or with an confirmation object). `messageInfo` contains the `threadID` where the message was sent and a `messageID`, as well as the `timestamp` of the message.
-* `messageID`: (Optional) A string representing a message you want to reply.
-
-__Message Object__:
-
-Various types of message can be sent:
-* *Regular:* set field `body` to the desired message as a string.
-* *Sticker:* set a field `sticker` to the desired sticker ID.
-* *File or image:* Set field `attachment` to a readable stream or an array of readable streams.
-* *URL:* set a field `url` to the desired URL.
-* *Emoji:* set field `emoji` to the desired emoji as a string and set field `emojiSize` with size of the emoji (`small`, `medium`, `large`)
-* *Mentions:* set field `mentions` to an array of objects. Objects should have the `tag` field set to the text that should be highlighted in the mention. The object should have an `id` field, where the `id` is the user id of the person being mentioned. The instance of `tag` that is highlighted is determined through indexOf, an optional `fromIndex`
-can be passed in to specify the start index to start searching for the `tag` text
-in `body` (default=0). (See below for an example.)
-* *Location:* set field `location` to an object with `latitude` and `longitude` fields. Optionally set field `current` of the `location` object to true to indicate the location is the user’s current location. Otherwise the location will be sent as a pinned location.
-
-Note that a message can only be a regular message (which can be empty) and optionally one of the following: a sticker, an attachment or a url.
-
-__Tip__: to find your own ID, you can look inside the cookies. The `userID` is under the name `c_user`.
-
-__Example (Basic Message)__
-```js
-const fs = require("fs");
-const login = require("fca-unofficial");
-
-login({appState: JSON.parse(fs.readFileSync('appstate.json', 'utf8'))}, (err, api) => {
-    if(err) return console.error(err);
-
-    var yourID = "000000000000000";
-    var msg = {body: "Hey!"};
-    api.sendMessage(msg, yourID);
-});
-```
-
-__Example (File upload)__
-```js
-const fs = require("fs");
-const login = require("fca-unofficial");
-
-login({appState: JSON.parse(fs.readFileSync('appstate.json', 'utf8'))}, (err, api) => {
-    if(err) return console.error(err);
-
-    // This example uploads an image called image.jpg
-    var yourID = "000000000000000";
-    var msg = {
-        body: "Hey!",
-        attachment: fs.createReadStream(__dirname + '/image.jpg')
+```javascript
+// Get info for 1 user
+api.getUserInfo("100012345678901", (err, userInfo) => {
+    if (err) {
+        console.error(err);
+        return;
     }
-    api.sendMessage(msg, yourID);
+
+    console.log(userInfo);
+    // {
+    //   "100012345678901": {
+    //     name: "John Doe",
+    //     firstName: "John",
+    //     vanity: "john.doe",
+    //     thumbSrc: "avatar_url",
+    //     profileUrl: "https://facebook.com/john.doe",
+    //     gender: "MALE",  // MALE/FEMALE
+    //     type: "user",
+    //     isFriend: true,
+    //     isBirthday: false
+    //   }
+    // }
+});
+
+// Get info for multiple users
+api.getUserInfo(["100012345678901", "100012345678902"], (err, userInfo) => {
+    if (err) return console.error(err);
+
+    for (let id in userInfo) {
+        console.log(userInfo[id].name);
+    }
 });
 ```
 
-__Example (Mention)__
-```js
-const login = require("fca-unofficial");
+---
 
-login({email: "EMAIL", password: "PASSWORD"}, (err, api) => {
-    if(err) return console.error(err);
+### 3.4. Message Scheduler - Schedule Messages
 
-    api.listen((err, message) => {
-        if (message && message.body) {
-            // Getting the actual sender name from ID involves calling
-            // `api.getThreadInfo` and `api.getUserInfo`
-            api.sendMessage({
-                body: 'Hello @Sender! @Sender!',
-                mentions: [{
-                     tag: '@Sender',
-                     id: message.senderID,
-                     fromIndex: 9, // Highlight the second occurrence of @Sender
-                }],
-            }, message.threadID);
+Schedule messages to be sent at a specific time in the future. Useful for reminders, scheduled announcements, and automated messages.
+
+#### Syntax:
+```javascript
+// Schedule a message
+const id = api.scheduler.scheduleMessage(message, threadID, when, options);
+
+// Cancel a scheduled message
+api.scheduler.cancelScheduledMessage(id);
+
+// Get scheduled message info
+const scheduled = api.scheduler.getScheduledMessage(id);
+
+// List all scheduled messages
+const list = api.scheduler.listScheduledMessages();
+
+// Cancel all scheduled messages
+const count = api.scheduler.cancelAllScheduledMessages();
+
+// Get count of scheduled messages
+const count = api.scheduler.getScheduledCount();
+```
+
+#### Parameters:
+- `message`: Message content (string or MessageObject)
+- `threadID`: Target thread ID(s) (string or array)
+- `when`: When to send - can be:
+  - `Date` object
+  - `number` (Unix timestamp in milliseconds)
+  - `string` (ISO date string)
+- `options`: Optional object with:
+  - `replyMessageID`: Message ID to reply to
+  - `isGroup`: Whether it's a group chat
+  - `callback`: Callback function when message is sent
+
+#### Examples:
+
+**1. Schedule message for specific time:**
+```javascript
+// Schedule for 1 hour from now
+const oneHourLater = Date.now() + (60 * 60 * 1000);
+const id = api.scheduler.scheduleMessage(
+    "This is a scheduled message!",
+    "100012345678901",
+    oneHourLater
+);
+console.log(`Message scheduled with ID: ${id}`);
+```
+
+**2. Schedule using Date object:**
+```javascript
+// Schedule for tomorrow at 9:00 AM
+const tomorrow = new Date();
+tomorrow.setDate(tomorrow.getDate() + 1);
+tomorrow.setHours(9, 0, 0, 0);
+
+const id = api.scheduler.scheduleMessage(
+    "Good morning! ☀️",
+    "100012345678901",
+    tomorrow
+);
+```
+
+**3. Schedule using ISO string:**
+```javascript
+// Schedule for specific date/time
+const id = api.scheduler.scheduleMessage(
+    "Meeting reminder!",
+    "100012345678901",
+    "2024-12-25T10:00:00Z"
+);
+```
+
+**4. Schedule with options:**
+```javascript
+const id = api.scheduler.scheduleMessage(
+    "Reply to your message",
+    "100012345678901",
+    Date.now() + 30000, // 30 seconds from now
+    {
+        replyMessageID: "mid.xxx",
+        isGroup: false,
+        callback: (err) => {
+            if (err) {
+                console.error("Scheduled message failed:", err);
+            } else {
+                console.log("Scheduled message sent!");
+            }
+        }
+    }
+);
+```
+
+**5. Cancel scheduled message:**
+```javascript
+const id = api.scheduler.scheduleMessage("Test", threadID, Date.now() + 60000);
+
+// Cancel it
+if (api.scheduler.cancelScheduledMessage(id)) {
+    console.log("Message cancelled");
+} else {
+    console.log("Message not found or already sent");
+}
+```
+
+**6. List all scheduled messages:**
+```javascript
+const scheduled = api.scheduler.listScheduledMessages();
+
+scheduled.forEach(msg => {
+    const timeUntil = Math.round(msg.timeUntilSend / 1000 / 60); // minutes
+    console.log(`ID: ${msg.id}, Sends in ${timeUntil} minutes`);
+});
+```
+
+**7. Get scheduled message info:**
+```javascript
+const scheduled = api.scheduler.getScheduledMessage(id);
+if (scheduled) {
+    console.log("Message:", scheduled.message);
+    console.log("Scheduled for:", new Date(scheduled.timestamp));
+    console.log("Time until send:", scheduled.timeUntilSend, "ms");
+}
+```
+
+**8. Complete example - Reminder bot:**
+```javascript
+const login = require("@dongdev/fca-unofficial");
+
+login({ appState: [] }, (err, api) => {
+    if (err) return console.error(err);
+
+    api.listenMqtt((err, event) => {
+        if (err) return console.error(err);
+
+        if (event.type === "message" && event.body.startsWith("/remind")) {
+            const args = event.body.split(" ");
+            if (args.length < 3) {
+                api.sendMessage("Usage: /remind <minutes> <message>", event.threadID);
+                return;
+            }
+
+            const minutes = parseInt(args[1]);
+            const message = args.slice(2).join(" ");
+            const when = Date.now() + (minutes * 60 * 1000);
+
+            const id = api.scheduler.scheduleMessage(
+                message,
+                event.threadID,
+                when
+            );
+
+            api.sendMessage(
+                `Reminder scheduled! I'll remind you in ${minutes} minutes.`,
+                event.threadID
+            );
         }
     });
 });
 ```
 
-__Example (Location)__
-```js
-const login = require("fca-unofficial");
-login({email: "EMAIL", password: "PASSWORD"}, (err, api) => {
-    if(err) return console.error(err);
-    var yourID = "000000000000000";
-    const msg = {
-    	location: { latitude: 48.858093, longitude: 2.294694, current: true },
-  	};
-    api.sendMessage(msg, yourID);
+#### Notes:
+- Scheduled messages are stored in memory and will be lost if the bot restarts
+- Messages are sent automatically at the scheduled time
+- You can cancel messages before they are sent
+- The scheduler automatically cleans up expired messages
+
+---
+
+### 3.5. Auto-save AppState
+
+Automatically save AppState to a file at regular intervals to prevent session loss.
+
+#### Syntax:
+```javascript
+// Enable auto-save
+const disable = api.enableAutoSaveAppState(options);
+
+// Disable auto-save
+disable();
+```
+
+#### Parameters:
+- `options`: Optional object with:
+  - `filePath`: Path to save AppState file (default: "appstate.json")
+  - `interval`: Save interval in milliseconds (default: 10 minutes)
+  - `saveOnLogin`: Save immediately on login (default: true)
+
+#### Examples:
+
+**1. Basic auto-save:**
+```javascript
+const login = require("@dongdev/fca-unofficial");
+
+login({ appState: [] }, (err, api) => {
+    if (err) return console.error(err);
+
+    // Enable auto-save (saves every 10 minutes by default)
+    api.enableAutoSaveAppState();
 });
 ```
 
----------------------------------------
+**2. Custom file path and interval:**
+```javascript
+// Save to custom location every 5 minutes
+const disable = api.enableAutoSaveAppState({
+    filePath: "./data/appstate.json",
+    interval: 5 * 60 * 1000, // 5 minutes
+    saveOnLogin: true
+});
 
-<a name="sendTypingIndicator"></a>
-### api.sendTypingIndicator(threadID[, callback])
+// Later, disable it
+// disable();
+```
 
-Sends a "USERNAME is typing" indicator to other members of the thread indicated by `threadID`. This indication will disappear after 30 second or when the `end` function is called. The `end` function is returned by `api.sendTypingIndicator`.
+**3. Save only on login:**
+```javascript
+// Save only once on login, not periodically
+const disable = api.enableAutoSaveAppState({
+    interval: Infinity, // Never save periodically
+    saveOnLogin: true
+});
+```
 
-__Arguments__
-
-* `threadID`: Group chat ID.
-* `callback(err)`: A callback called when the query is done (with an error or with null).
-
----------------------------------------
-
-<a name="setMessageReaction"></a>
-### api.setMessageReaction(reaction, messageID[, callback[, forceCustomReaction]])
-
-Sets reaction on message
-
-__Arguments__
-
-* `reaction`: A string containing either an emoji, an emoji in unicode, or an emoji shortcut (see list of supported emojis below). The string can be left empty ("") in order to remove a reaction.
-* `messageID`: A string representing the message ID.
-* `callback(err)`: A callback called when sending the reaction is done.
-* `forceCustomReaction`: Forcing the use of an emoji for setting reaction **(WARNING: NOT TESTED, YOU SHOULD NOT USE THIS AT ALL, UNLESS YOU'RE TESTING A NEW EMOJI)**
-
-__Supported Emojis__
-
-|Emoji|Text|Unicode|Shortcuts|
-|---|---|---|---|
-|😍|`😍`|`\uD83D\uDE0D`|`:love:`, `:heart_eyes:`|
-|😆|`😆`|`\uD83D\uDE06`|`:haha:`, `:laughing:`|
-|😮|`😮`|`\uD83D\uDE2E`|`:wow:`, `:open_mouth:`|
-|😢|`😢`|`\uD83D\uDE22`|`:sad:`, `:cry:`|
-|😠|`😠`|`\uD83D\uDE20`|`:angry:`|
-|👍|`👍`|`\uD83D\uDC4D`|`:like:`, `:thumbsup:`|
-|👎|`👎`|`\uD83D\uDC4E`|`:dislike:`, `:thumbsdown:`|
-|❤|`❤`|`\u2764`|`:heart:`|
-|💗|`💗`|`\uD83D\uDC97`|`:glowingheart:`|
-
----------------------------------------
-
-<a name="setOptions"></a>
-### api.setOptions(options)
-
-Sets various configurable options for the api.
-
-__Arguments__
-
-* `options` - An object containing the new values for the options that you want
-  to set.  If the value for an option is unspecified, it is unchanged. The following options are possible.
-    - `pauseLog`: (Default `false`) Set this to `true` if you want to pause the npmlog output.
-    - `logLevel`: The desired logging level as determined by npmlog.  Choose
-      from either `"silly"`, `"verbose"`, `"info"`, `"http"`, `"warn"`, `"error"`, or `"silent"`.
-    - `selfListen`: (Default `false`) Set this to `true` if you want your api
-      to receive messages from its own account.  This is to be used with
-      caution, as it can result in loops (a simple echo bot will send messages
-      forever).
-    - `listenEvents`: (Default `false`) Will make [api.listen](#listen) also handle events (look at api.listen for more details).
-    - `pageID`: (Default empty) Makes [api.listen](#listen) only receive messages through the page specified by that ID. Also makes [api.sendMessage](#sendMessage) send from the page.
-    - `updatePresence`: (Default `false`) Will make [api.listen](#listen) also return `presence` ([api.listen](#presence) for more details).
-    - `forceLogin`: (Default `false`) Will automatically approve of any recent logins and continue with the login process.
-    - `userAgent`: (Default `Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_2) AppleWebKit/600.3.18 (KHTML, like Gecko) Version/8.0.3 Safari/600.3.18`) The desired simulated User Agent.
-	- `autoMarkDelivery`: (Default `true`) Will automatically mark new messages as delivered. See [api.markAsDelivered](#markAsDelivered).
-	- `autoMarkRead`: (Default `false`) Will automatically mark new messages as read/seen. See [api.markAsRead](#markAsRead).
-	- `proxy`: (Default empty) Set this to proxy server address to use proxy. Note: Only HTTP Proxies which support CONNECT method is supported.
-	- `online`: (Default `true`) Set account's online state.
-
-__Example__
-
-```js
+**4. Complete example:**
+```javascript
 const fs = require("fs");
-const login = require("fca-unofficial");
+const login = require("@dongdev/fca-unofficial");
 
-// Simple echo bot. This will send messages forever.
+// Try to load existing AppState
+let appState = [];
+try {
+    appState = JSON.parse(fs.readFileSync("appstate.json", "utf8"));
+} catch (e) {
+    console.log("No existing AppState found");
+}
 
-login({appState: JSON.parse(fs.readFileSync('appstate.json', 'utf8'))}, (err, api) => {
-    if(err) return console.error(err);
+login({ appState }, (err, api) => {
+    if (err) return console.error(err);
 
-    api.setOptions({
-        selfListen: true,
-        logLevel: "silent"
+    // Enable auto-save
+    api.enableAutoSaveAppState({
+        filePath: "appstate.json",
+        interval: 10 * 60 * 1000, // 10 minutes
+        saveOnLogin: true
     });
 
-    api.listen((err, message) => {
-        if(err) return console.error(err);
+    console.log("Bot started with auto-save enabled!");
+});
+```
 
-        // Ignore empty messages (photos etc.)
-        if (typeof message.body === "string") {
-            api.sendMessage(message.body, message.threadID);
-        }
+#### Notes:
+- AppState is saved automatically at the specified interval
+- Saves immediately on login if `saveOnLogin` is true
+- The save function checks if AppState is valid before saving
+- Multiple auto-save instances can be enabled with different settings
+
+---
+
+### 3.6. getThreadInfo - Get Thread Information
+
+Get information about conversation/group chat.
+
+#### Syntax:
+```javascript
+api.getThreadInfo(threadID, callback);
+```
+
+#### Example:
+
+```javascript
+api.getThreadInfo("1234567890", (err, threadInfo) => {
+    if (err) {
+        console.error(err);
+        return;
+    }
+
+    console.log("Group name:", threadInfo.threadName);
+    console.log("Member count:", threadInfo.participantIDs.length);
+    console.log("Members list:", threadInfo.participantIDs);
+    console.log("Admins:", threadInfo.adminIDs);
+    console.log("Nicknames:", threadInfo.nicknames);
+    console.log("Chat color:", threadInfo.color);
+    console.log("Emoji:", threadInfo.emoji);
+});
+```
+
+---
+
+### 3.5. changeThreadColor - Change Chat Color
+
+Change the color of conversation.
+
+#### Syntax:
+```javascript
+api.changeThreadColor(color, threadID, callback);
+```
+
+#### Example:
+
+```javascript
+// Color can be:
+// "#0084ff" (Messenger Blue)
+// "#44bec7" (Teal Blue)
+// "#ffc300" (Yellow)
+// "#fa3c4c" (Red)
+// "#d696bb" (Pink)
+// "#6699cc" (Sky Blue)
+// "#13cf13" (Green)
+// "#ff7e29" (Orange)
+// "#e68585" (Light Red)
+// "#7646ff" (Purple)
+// "#20cef5" (Cyan)
+// or any hex color code
+
+api.changeThreadColor("#ffc300", "1234567890", (err) => {
+    if (err) {
+        console.error("Change color error:", err);
+        return;
+    }
+    console.log("Chat color changed successfully!");
+});
+```
+
+---
+
+### 3.6. changeThreadEmoji - Change Group Emoji
+
+Change the default emoji of conversation.
+
+#### Syntax:
+```javascript
+api.changeThreadEmoji(emoji, threadID, callback);
+```
+
+#### Example:
+
+```javascript
+api.changeThreadEmoji("👍", "1234567890", (err) => {
+    if (err) {
+        console.error("Change emoji error:", err);
+        return;
+    }
+    console.log("Emoji changed successfully!");
+});
+```
+
+---
+
+### 3.7. setTitle - Change Group Name
+
+Change the name of group chat.
+
+#### Syntax:
+```javascript
+api.setTitle(newTitle, threadID, callback);
+```
+
+#### Example:
+
+```javascript
+api.setTitle("New Chat Group", "1234567890", (err) => {
+    if (err) {
+        console.error("Change name error:", err);
+        return;
+    }
+    console.log("Group name changed successfully!");
+});
+```
+
+---
+
+### 3.8. addUserToGroup - Add Member to Group
+
+Add user to group chat.
+
+#### Syntax:
+```javascript
+api.addUserToGroup(userID, threadID, callback);
+```
+
+#### Example:
+
+```javascript
+// Add 1 person
+api.addUserToGroup("100012345678901", "1234567890", (err) => {
+    if (err) {
+        console.error("Add user error:", err);
+        return;
+    }
+    console.log("Member added successfully!");
+});
+
+// Add multiple people
+api.addUserToGroup(["100012345678901", "100012345678902"], "1234567890", (err) => {
+    if (err) return console.error(err);
+    console.log("Multiple members added!");
+});
+```
+
+---
+
+### 3.9. removeUserFromGroup - Remove Member from Group
+
+Remove user from group chat.
+
+#### Syntax:
+```javascript
+api.removeUserFromGroup(userID, threadID, callback);
+```
+
+#### Example:
+
+```javascript
+api.removeUserFromGroup("100012345678901", "1234567890", (err) => {
+    if (err) {
+        console.error("Remove user error:", err);
+        return;
+    }
+    console.log("Member removed successfully!");
+});
+```
+
+---
+
+### 3.10. changeNickname - Change Nickname
+
+Change user's nickname in group chat.
+
+#### Syntax:
+```javascript
+api.changeNickname(nickname, threadID, userID, callback);
+```
+
+#### Example:
+
+```javascript
+api.changeNickname("Admin Bot", "1234567890", "100012345678901", (err) => {
+    if (err) {
+        console.error("Change nickname error:", err);
+        return;
+    }
+    console.log("Nickname changed successfully!");
+});
+
+// Remove nickname (set to original name)
+api.changeNickname("", "1234567890", "100012345678901", (err) => {
+    if (err) return console.error(err);
+    console.log("Nickname removed!");
+});
+```
+
+---
+
+### 3.11. markAsRead - Mark as Read
+
+Mark message as read.
+
+#### Syntax:
+```javascript
+api.markAsRead(threadID, callback);
+```
+
+#### Example:
+
+```javascript
+api.listenMqtt((err, event) => {
+    if (err) return console.error(err);
+
+    if (event.type === "message") {
+        // Auto mark as read
+        api.markAsRead(event.threadID, (err) => {
+            if (err) console.error("Mark as read error:", err);
+        });
+    }
+});
+```
+
+---
+
+### 3.12. markAsDelivered - Mark as Delivered
+
+Mark message as delivered.
+
+#### Syntax:
+```javascript
+api.markAsDelivered(threadID, messageID, callback);
+```
+
+#### Example:
+
+```javascript
+api.markAsDelivered("1234567890", "mid.xxx", (err) => {
+    if (err) {
+        console.error("Mark as delivered error:", err);
+        return;
+    }
+    console.log("Marked as delivered!");
+});
+```
+
+---
+
+### 3.13. markAsReadAll - Mark All as Read
+
+Mark all messages as read.
+
+#### Syntax:
+```javascript
+api.markAsReadAll(callback);
+```
+
+#### Example:
+
+```javascript
+api.markAsReadAll((err) => {
+    if (err) {
+        console.error("Error:", err);
+        return;
+    }
+    console.log("All messages marked as read!");
+});
+```
+
+---
+
+### 3.14. sendTypingIndicator - Show Typing Indicator
+
+Display "typing..." status in chat.
+
+#### Syntax:
+```javascript
+api.sendTypingIndicator(threadID, callback);
+```
+
+#### Example:
+
+```javascript
+// Show typing
+api.sendTypingIndicator("1234567890", (err) => {
+    if (err) return console.error(err);
+
+    // After 3 seconds, send message
+    setTimeout(() => {
+        api.sendMessage("Hello!", "1234567890");
+    }, 3000);
+});
+
+// Or stop typing indicator
+api.sendTypingIndicator("1234567890", (err) => {
+    if (err) return console.error(err);
+}, true);  // 3rd parameter is true to turn off typing
+```
+
+---
+
+### 3.15. unsendMessage - Unsend Message
+
+Unsend/recall a sent message.
+
+#### Syntax:
+```javascript
+api.unsendMessage(messageID, callback);
+```
+
+#### Example:
+
+```javascript
+api.sendMessage("This message will be deleted", "1234567890", (err, messageInfo) => {
+    if (err) return console.error(err);
+
+    // Unsend after 5 seconds
+    setTimeout(() => {
+        api.unsendMessage(messageInfo.messageID, (err) => {
+            if (err) {
+                console.error("Unsend error:", err);
+                return;
+            }
+            console.log("Message unsent!");
+        });
+    }, 5000);
+});
+```
+
+---
+
+### 3.16. createPoll - Create Poll
+
+Create poll in group chat.
+
+#### Syntax:
+```javascript
+api.createPoll(title, threadID, options, callback);
+```
+
+#### Example:
+
+```javascript
+const title = "Choose travel destination?";
+const options = {
+    "Da Lat": false,    // false = allow multiple choices
+    "Nha Trang": false,
+    "Phu Quoc": false
+};
+
+api.createPoll(title, "1234567890", options, (err, pollInfo) => {
+    if (err) {
+        console.error("Create poll error:", err);
+        return;
+    }
+    console.log("Poll created successfully!");
+});
+```
+
+---
+
+### 3.17. handleMessageRequest - Handle Message Request
+
+Accept or decline message from stranger.
+
+#### Syntax:
+```javascript
+api.handleMessageRequest(threadID, accept, callback);
+```
+
+#### Example:
+
+```javascript
+// Accept message
+api.handleMessageRequest("1234567890", true, (err) => {
+    if (err) {
+        console.error("Error:", err);
+        return;
+    }
+    console.log("Message accepted!");
+});
+
+// Decline message
+api.handleMessageRequest("1234567890", false, (err) => {
+    if (err) return console.error(err);
+    console.log("Message declined!");
+});
+```
+
+---
+
+### 3.18. muteThread - Mute Notifications
+
+Mute or unmute notifications for conversation.
+
+#### Syntax:
+```javascript
+api.muteThread(threadID, muteSeconds, callback);
+```
+
+#### Example:
+
+```javascript
+// Mute for 1 hour (3600 seconds)
+api.muteThread("1234567890", 3600, (err) => {
+    if (err) {
+        console.error("Error:", err);
+        return;
+    }
+    console.log("Muted for 1 hour!");
+});
+
+// Mute permanently
+api.muteThread("1234567890", -1, (err) => {
+    if (err) return console.error(err);
+    console.log("Muted permanently!");
+});
+
+// Unmute
+api.muteThread("1234567890", 0, (err) => {
+    if (err) return console.error(err);
+    console.log("Unmuted!");
+});
+```
+
+---
+
+### 3.19. getThreadList - Get Thread List
+
+Get list of conversations.
+
+#### Syntax:
+```javascript
+api.getThreadList(limit, timestamp, tags, callback);
+```
+
+#### Example:
+
+```javascript
+// Get 20 most recent conversations
+api.getThreadList(20, null, ["INBOX"], (err, threads) => {
+    if (err) {
+        console.error("Error:", err);
+        return;
+    }
+
+    threads.forEach(thread => {
+        console.log("Thread ID:", thread.threadID);
+        console.log("Name:", thread.name);
+        console.log("Unread count:", thread.unreadCount);
+        console.log("Last message:", thread.snippet);
+        console.log("---");
+    });
+});
+
+// Tags can be:
+// - "INBOX" : Inbox
+// - "ARCHIVED" : Archived
+// - "PENDING" : Pending messages
+// - "OTHER" : Other
+```
+
+---
+
+### 3.20. getThreadHistory - Get Message History
+
+Get message history of conversation.
+
+#### Syntax:
+```javascript
+api.getThreadHistory(threadID, amount, timestamp, callback);
+```
+
+#### Example:
+
+```javascript
+// Get 50 most recent messages
+api.getThreadHistory("1234567890", 50, null, (err, history) => {
+    if (err) {
+        console.error("Error:", err);
+        return;
+    }
+
+    history.forEach(msg => {
+        console.log("From:", msg.senderName);
+        console.log("Content:", msg.body);
+        console.log("Time:", new Date(msg.timestamp));
+        console.log("---");
+    });
+});
+
+// Get older messages (pagination)
+const oldestTimestamp = history[history.length - 1].timestamp;
+api.getThreadHistory("1234567890", 50, oldestTimestamp, (err, olderHistory) => {
+    if (err) return console.error(err);
+    console.log("Retrieved 50 older messages!");
+});
+```
+
+---
+
+### 3.21. getThreadPictures - Get Thread Pictures
+
+Get conversation/group avatar URL.
+
+#### Syntax:
+```javascript
+api.getThreadPictures(threadID, offset, limit, callback);
+```
+
+#### Example:
+
+```javascript
+api.getThreadPictures("1234567890", 0, 10, (err, pictures) => {
+    if (err) {
+        console.error("Error:", err);
+        return;
+    }
+
+    pictures.forEach(pic => {
+        console.log("Image URL:", pic.url);
+        console.log("Width:", pic.width);
+        console.log("Height:", pic.height);
     });
 });
 ```
 
----------------------------------------
+---
 
-<a name="setTitle"></a>
-### api.setTitle(newTitle, threadID[, callback])
+### 3.22. getUserID - Get User ID
 
-Sets the title of the group chat with thread id `threadID` to `newTitle`.
+Get User ID from username or profile URL.
 
-Note: This will not work if the thread id corresponds to a single-user chat or if the bot is not in the group chat.
+#### Syntax:
+```javascript
+api.getUserID(name, callback);
+```
 
-__Arguments__
+#### Example:
 
-* `newTitle`: A string representing the new title.
-* `threadID`: A string or number representing a thread. It happens to be someone's userID in the case of a one to one conversation.
-* `callback(err, obj)` - A callback called when sending the message is done (either with an error or with an confirmation object). `obj` contains only the threadID where the message was sent.
+```javascript
+// From username
+api.getUserID("john.doe", (err, data) => {
+    if (err) {
+        console.error("Error:", err);
+        return;
+    }
+    console.log("User ID:", data.userID);
+});
 
----------------------------------------
+// From profile URL
+api.getUserID("https://facebook.com/john.doe", (err, data) => {
+    if (err) return console.error(err);
+    console.log("User ID:", data.userID);
+});
+```
 
-<a name="unsendMessage"></a>
-### api.unsendMessage(messageID[, callback])
+---
 
-Revokes a message from anyone that could see that message with `messageID`
+### 3.23. getAppState - Get Current AppState
 
-Note: This will only work if the message is sent by you and was sent less than 10 minutes ago.
+Get current AppState (cookies, session).
 
-__Arguments__
+#### Syntax:
+```javascript
+const appState = api.getAppState();
+```
 
-* `messageID`: Message ID you want to unsend.
-* `callback(err)`: A callback called when the query is done (with an error or with null).
+#### Example:
 
----------------------------------------
+```javascript
+const fs = require("fs");
+
+// Get and save AppState
+const appState = api.getAppState();
+fs.writeFileSync("appstate.json", JSON.stringify(appState, null, 2));
+console.log("✅ AppState saved!");
+
+// Periodically update AppState (every 10 minutes)
+setInterval(() => {
+    const updatedAppState = api.getAppState();
+    fs.writeFileSync("appstate.json", JSON.stringify(updatedAppState, null, 2));
+    console.log("🔄 AppState updated");
+}, 10 * 60 * 1000);
+```
+
+---
+
+### 3.24. deleteMessage - Delete Message (from your side)
+
+Delete message from your side (not unsend).
+
+#### Syntax:
+```javascript
+api.deleteMessage(messageID, callback);
+```
+
+#### Example:
+
+```javascript
+api.deleteMessage("mid.xxx", (err) => {
+    if (err) {
+        console.error("Delete message error:", err);
+        return;
+    }
+    console.log("Message deleted!");
+});
+```
+
+---
+
+### 3.25. deleteThread - Delete Thread
+
+Delete conversation from your list.
+
+#### Syntax:
+```javascript
+api.deleteThread(threadID, callback);
+```
+
+#### Example:
+
+```javascript
+api.deleteThread("1234567890", (err) => {
+    if (err) {
+        console.error("Delete thread error:", err);
+        return;
+    }
+    console.log("Thread deleted!");
+});
+```
+
+---
+
+### 3.26. forwardAttachment - Forward Attachment
+
+Forward attachment from one message to another.
+
+#### Syntax:
+```javascript
+api.forwardAttachment(attachmentID, userOrThreadID, callback);
+```
+
+#### Example:
+
+```javascript
+api.listenMqtt((err, event) => {
+    if (err) return console.error(err);
+
+    if (event.type === "message" && event.attachments.length > 0) {
+        // Forward first attachment
+        const attachmentID = event.attachments[0].ID;
+
+        api.forwardAttachment(attachmentID, "100012345678901", (err) => {
+            if (err) {
+                console.error("Forward error:", err);
+                return;
+            }
+            console.log("Attachment forwarded!");
+        });
+    }
+});
+```
+
+---
+
+### 3.27. setMessageReaction - React to Message
+
+Add reaction (like, love, haha, wow, sad, angry) to message.
+
+#### Syntax:
+```javascript
+api.setMessageReaction(reaction, messageID, callback);
+```
+
+#### Example:
+
+```javascript
+// Reaction can be:
+// "👍" or ":like:" - Like
+// "❤️" or ":love:" - Love
+// "😂" or ":haha:" - Haha
+// "😮" or ":wow:" - Wow
+// "😢" or ":sad:" - Sad
+// "😠" or ":angry:" - Angry
+// "" (empty string) - Remove reaction
+
+api.listenMqtt((err, event) => {
+    if (err) return console.error(err);
+
+    if (event.type === "message" && event.body === "React me") {
+        api.setMessageReaction("❤️", event.messageID, (err) => {
+            if (err) {
+                console.error("React error:", err);
+                return;
+            }
+            console.log("Message reacted!");
+        });
+    }
+});
+
+// Remove reaction
+api.setMessageReaction("", "mid.xxx", (err) => {
+    if (err) return console.error(err);
+    console.log("Reaction removed!");
+});
+```
+
+---
+
+### 3.28. searchForThread - Search for Thread
+
+Search for conversation by name.
+
+#### Syntax:
+```javascript
+api.searchForThread(name, callback);
+```
+
+#### Example:
+
+```javascript
+api.searchForThread("Study Group", (err, threads) => {
+    if (err) {
+        console.error("Search error:", err);
+        return;
+    }
+
+    threads.forEach(thread => {
+        console.log("Name:", thread.name);
+        console.log("Thread ID:", thread.threadID);
+        console.log("Type:", thread.isGroup ? "Group" : "Personal");
+        console.log("---");
+    });
+});
+```
+
+---
+
+### 3.29. logout - Logout
+
+Logout from Facebook account.
+
+#### Syntax:
+```javascript
+api.logout(callback);
+```
+
+#### Example:
+
+```javascript
+api.logout((err) => {
+    if (err) {
+        console.error("Logout error:", err);
+        return;
+    }
+    console.log("Logged out successfully!");
+});
+```
+
+---
+
+### 3.30. getCurrentUserID - Get Current User ID
+
+Get User ID of currently logged in account.
+
+#### Syntax:
+```javascript
+const myUserID = api.getCurrentUserID();
+```
+
+#### Example:
+
+```javascript
+const myUserID = api.getCurrentUserID();
+console.log("Bot's User ID:", myUserID);
+
+// Use to check if message is from bot
+api.listenMqtt((err, event) => {
+    if (err) return console.error(err);
+
+    if (event.type === "message") {
+        if (event.senderID === myUserID) {
+            console.log("This is a message from bot!");
+        } else {
+            console.log("Message from someone else");
+        }
+    }
+});
+```
+
+---
+
+### 3.31. resolvePhotoUrl - Get High Quality Photo URL
+
+Get high resolution photo URL from photo ID.
+
+#### Syntax:
+```javascript
+api.resolvePhotoUrl(photoID, callback);
+```
+
+#### Example:
+
+```javascript
+api.resolvePhotoUrl("1234567890123456", (err, url) => {
+    if (err) {
+        console.error("Error:", err);
+        return;
+    }
+    console.log("High quality image URL:", url);
+});
+```
+
+---
+
+### 3.32. changeArchivedStatus - Archive/Unarchive Thread
+
+Archive or unarchive conversation.
+
+#### Syntax:
+```javascript
+api.changeArchivedStatus(threadID, archive, callback);
+```
+
+#### Example:
+
+```javascript
+// Archive conversation
+api.changeArchivedStatus("1234567890", true, (err) => {
+    if (err) {
+        console.error("Error:", err);
+        return;
+    }
+    console.log("Thread archived!");
+});
+
+// Unarchive
+api.changeArchivedStatus("1234567890", false, (err) => {
+    if (err) return console.error(err);
+    console.log("Thread unarchived!");
+});
+```
+
+---
+
+### 3.33. changeBlockedStatus - Block/Unblock User
+
+Block or unblock user.
+
+#### Syntax:
+```javascript
+api.changeBlockedStatus(userID, block, callback);
+```
+
+#### Example:
+
+```javascript
+// Block user
+api.changeBlockedStatus("100012345678901", true, (err) => {
+    if (err) {
+        console.error("Error:", err);
+        return;
+    }
+    console.log("User blocked!");
+});
+
+// Unblock
+api.changeBlockedStatus("100012345678901", false, (err) => {
+    if (err) return console.error(err);
+    console.log("User unblocked!");
+});
+```
+
+---
+
+### 3.34. createNewGroup - Create New Group
+
+Create new group chat with member list.
+
+#### Syntax:
+```javascript
+api.createNewGroup(participantIDs, groupTitle, callback);
+```
+
+#### Example:
+
+```javascript
+const members = ["100012345678901", "100012345678902", "100012345678903"];
+const groupName = "New Chat Group";
+
+api.createNewGroup(members, groupName, (err, threadID) => {
+    if (err) {
+        console.error("Create group error:", err);
+        return;
+    }
+    console.log("Group created successfully!");
+    console.log("Thread ID:", threadID);
+
+    // Send message to new group
+    api.sendMessage("Welcome to the group!", threadID);
+});
+```
+
+---
+
+## 4. COMPLETE BOT EXAMPLES
+
+### 4.1. Echo Bot (Message Repeater)
+
+```javascript
+const fs = require("fs");
+const login = require("@dongdev/fca-unofficial");
+
+// Login
+login(
+    { appState: JSON.parse(fs.readFileSync("appstate.json", "utf8")) },
+    (err, api) => {
+        if (err) {
+            console.error("Login error:", err);
+            return;
+        }
+
+        console.log("✅ Bot started!");
+
+        // Configuration
+        api.setOptions({
+            listenEvents: true,
+            selfListen: false,
+            logLevel: "silent"
+        });
+
+        // Listen for messages
+        api.listenMqtt((err, event) => {
+            if (err) return console.error(err);
+
+            if (event.type === "message") {
+                const { body, threadID, messageID, senderID } = event;
+
+                // Stop bot command
+                if (body === "/stop") {
+                    api.sendMessage("Bot stopped!", threadID);
+                    process.exit(0);
+                }
+
+                // Echo message
+                api.sendMessage(`📣 Echo: ${body}`, threadID, messageID);
+            }
+        });
+    }
+);
+```
+
+---
+
+### 4.2. Group Management Bot
+
+```javascript
+const fs = require("fs");
+const login = require("@dongdev/fca-unofficial");
+
+// Admin list (User IDs)
+const ADMINS = ["100012345678901", "100012345678902"];
+
+// Check admin permission
+function isAdmin(userID) {
+    return ADMINS.includes(userID);
+}
+
+login(
+    { appState: JSON.parse(fs.readFileSync("appstate.json", "utf8")) },
+    (err, api) => {
+        if (err) return console.error(err);
+
+        console.log("✅ Group management bot started!");
+
+        api.setOptions({ listenEvents: true });
+
+        api.listenMqtt((err, event) => {
+            if (err) return console.error(err);
+
+            const { type, threadID, senderID, body, messageID } = event;
+
+            // Handle messages
+            if (type === "message") {
+                // Only admins can use commands
+                if (!isAdmin(senderID)) {
+                    if (body.startsWith("/")) {
+                        api.sendMessage(
+                            "❌ You don't have permission to use this command!",
+                            threadID,
+                            messageID
+                        );
+                    }
+                    return;
+                }
+
+                // Kick command
+                if (body.startsWith("/kick ")) {
+                    const userID = body.split(" ")[1];
+                    api.removeUserFromGroup(userID, threadID, (err) => {
+                        if (err) {
+                            api.sendMessage("❌ Error kicking user!", threadID);
+                        } else {
+                            api.sendMessage("✅ User kicked!", threadID);
+                        }
+                    });
+                }
+
+                // Rename command
+                else if (body.startsWith("/rename ")) {
+                    const newName = body.substring(8);
+                    api.setTitle(newName, threadID, (err) => {
+                        if (err) {
+                            api.sendMessage("❌ Error renaming group!", threadID);
+                        } else {
+                            api.sendMessage(`✅ Group renamed to: ${newName}`, threadID);
+                        }
+                    });
+                }
+
+                // Group info command
+                else if (body === "/info") {
+                    api.getThreadInfo(threadID, (err, info) => {
+                        if (err) return api.sendMessage("❌ Error getting info!", threadID);
+
+                        const message = `
+📊 GROUP INFORMATION
+━━━━━━━━━━━━━━━
+👥 Name: ${info.threadName}
+📝 Members: ${info.participantIDs.length}
+👑 Admins: ${info.adminIDs.length}
+🎨 Color: ${info.color}
+😊 Emoji: ${info.emoji || "Default"}
+                        `.trim();
+
+                        api.sendMessage(message, threadID);
+                    });
+                }
+
+                // Help command
+                else if (body === "/help") {
+                    const helpMessage = `
+🤖 COMMAND LIST
+━━━━━━━━━━━━━━━
+/kick [userID] - Kick member
+/rename [new name] - Rename group
+/info - View group info
+/help - Show help
+                    `.trim();
+
+                    api.sendMessage(helpMessage, threadID);
+                }
+            }
+
+            // Handle events
+            else if (type === "event") {
+                // Welcome new members
+                if (event.logMessageType === "log:subscribe") {
+                    const addedUsers = event.logMessageData.addedParticipants;
+                    addedUsers.forEach(user => {
+                        api.sendMessage(
+                            `👋 Welcome ${user.fullName} to the group!`,
+                            threadID
+                        );
+                    });
+                }
+
+                // Notify when someone leaves
+                else if (event.logMessageType === "log:unsubscribe") {
+                    api.sendMessage(`👋 Goodbye! A member left the group.`, threadID);
+                }
+            }
+        });
+    }
+);
+```
+
+---
+
+### 4.3. AI ChatBot Style (Mock)
+
+```javascript
+const fs = require("fs");
+const login = require("@dongdev/fca-unofficial");
+
+// Store chat history by threadID
+const chatHistory = {};
+
+// Mock AI response function
+function getAIResponse(message, threadID) {
+    // Initialize history if not exists
+    if (!chatHistory[threadID]) {
+        chatHistory[threadID] = [];
+    }
+
+    // Add user message to history
+    chatHistory[threadID].push({ role: "user", content: message });
+
+    // Limit history to last 10 messages
+    if (chatHistory[threadID].length > 10) {
+        chatHistory[threadID] = chatHistory[threadID].slice(-10);
+    }
+
+    // Mock response (you can integrate real ChatGPT API here)
+    let response = "";
+
+    if (message.toLowerCase().includes("hello")) {
+        response = "Hello! How can I help you?";
+    } else if (message.toLowerCase().includes("name")) {
+        response = "I'm an AI Assistant Bot!";
+    } else if (message.toLowerCase().includes("weather")) {
+        response = "Sorry, I don't have weather information. Please check weather apps!";
+    } else {
+        response = `I received your message: "${message}". Thank you for chatting with me!`;
+    }
+
+    // Add response to history
+    chatHistory[threadID].push({ role: "assistant", content: response });
+
+    return response;
+}
+
+login(
+    { appState: JSON.parse(fs.readFileSync("appstate.json", "utf8")) },
+    (err, api) => {
+        if (err) return console.error(err);
+
+        console.log("✅ AI Bot started!");
+
+        api.setOptions({
+            listenEvents: true,
+            selfListen: false
+        });
+
+        api.listenMqtt((err, event) => {
+            if (err) return console.error(err);
+
+            if (event.type === "message" && event.body) {
+                const { body, threadID, messageID } = event;
+
+                // Ignore if doesn't start with "ai" prefix
+                if (!body.toLowerCase().startsWith("ai ")) {
+                    return;
+                }
+
+                // Get message content (remove "ai " prefix)
+                const userMessage = body.substring(3).trim();
+
+                // Show typing indicator
+                api.sendTypingIndicator(threadID);
+
+                // Delay for more natural feel
+                setTimeout(() => {
+                    const aiResponse = getAIResponse(userMessage, threadID);
+                    api.sendMessage(`🤖 ${aiResponse}`, threadID, messageID);
+                }, 1500);
+            }
+        });
+    }
+);
+```
+
+---
+
+### 4.4. Auto-Reply Bot with Keywords
+
+```javascript
+const fs = require("fs");
+const login = require("@dongdev/fca-unofficial");
+
+// Auto-reply dictionary
+const autoReplies = {
+    "hello": "Hi there! How can I help you?",
+    "hi": "Hello! What's up?",
+    "bye": "Goodbye! See you later!",
+    "thanks": "You're welcome! 😊",
+    "help": "I'm here to assist! Just ask me anything.",
+    "time": () => `Current time: ${new Date().toLocaleTimeString()}`,
+    "date": () => `Today's date: ${new Date().toLocaleDateString()}`
+};
+
+function getAutoReply(message) {
+    const lowerMessage = message.toLowerCase().trim();
+
+    // Check for exact matches
+    for (let keyword in autoReplies) {
+        if (lowerMessage.includes(keyword)) {
+            const reply = autoReplies[keyword];
+            // If reply is function, execute it
+            return typeof reply === 'function' ? reply() : reply;
+        }
+    }
+
+    return null; // No match found
+}
+
+login(
+    { appState: JSON.parse(fs.readFileSync("appstate.json", "utf8")) },
+    (err, api) => {
+        if (err) return console.error(err);
+
+        console.log("✅ Auto-reply bot started!");
+
+        api.setOptions({
+            listenEvents: true,
+            selfListen: false
+        });
+
+        api.listenMqtt((err, event) => {
+            if (err) return console.error(err);
+
+            if (event.type === "message" && event.body) {
+                const { body, threadID, messageID } = event;
+
+                const reply = getAutoReply(body);
+
+                if (reply) {
+                    api.sendMessage(reply, threadID, messageID);
+                }
+            }
+        });
+    }
+);
+```
+
+---
+
+### 4.5. Command Handler Bot
+
+```javascript
+const fs = require("fs");
+const login = require("@dongdev/fca-unofficial");
+
+// Command prefix
+const PREFIX = "/";
+
+// Commands object
+const commands = {
+    ping: {
+        description: "Check bot latency",
+        execute: (api, event) => {
+            const start = Date.now();
+            api.sendMessage("Pong! 🏓", event.threadID, (err) => {
+                if (!err) {
+                    const latency = Date.now() - start;
+                    api.sendMessage(`Latency: ${latency}ms`, event.threadID);
+                }
+            });
+        }
+    },
+
+    userinfo: {
+        description: "Get user information",
+        execute: (api, event) => {
+            api.getUserInfo(event.senderID, (err, userInfo) => {
+                if (err) return api.sendMessage("Error getting user info!", event.threadID);
+
+                const user = userInfo[event.senderID];
+                const info = `
+👤 USER INFO
+━━━━━━━━━━━━
+Name: ${user.name}
+Gender: ${user.gender}
+Profile: ${user.profileUrl}
+                `.trim();
+
+                api.sendMessage(info, event.threadID);
+            });
+        }
+    },
+
+    time: {
+        description: "Get current time",
+        execute: (api, event) => {
+            const now = new Date();
+            api.sendMessage(`🕐 Current time: ${now.toLocaleString()}`, event.threadID);
+        }
+    },
+
+    help: {
+        description: "Show command list",
+        execute: (api, event) => {
+            let helpText = "📋 AVAILABLE COMMANDS\n━━━━━━━━━━━━━━━\n";
+
+            for (let cmd in commands) {
+                helpText += `${PREFIX}${cmd} - ${commands[cmd].description}\n`;
+            }
+
+            api.sendMessage(helpText, event.threadID);
+        }
+    }
+};
+
+login(
+    { appState: JSON.parse(fs.readFileSync("appstate.json", "utf8")) },
+    (err, api) => {
+        if (err) return console.error(err);
+
+        console.log("✅ Command handler bot started!");
+
+        api.setOptions({ listenEvents: true, selfListen: false });
+
+        api.listenMqtt((err, event) => {
+            if (err) return console.error(err);
+
+            if (event.type === "message" && event.body) {
+                const { body, threadID } = event;
+
+                // Check if message starts with prefix
+                if (!body.startsWith(PREFIX)) return;
+
+                // Parse command
+                const args = body.slice(PREFIX.length).trim().split(/ +/);
+                const commandName = args.shift().toLowerCase();
+
+                // Execute command
+                if (commands[commandName]) {
+                    try {
+                        commands[commandName].execute(api, event, args);
+                    } catch (error) {
+                        console.error("Command execution error:", error);
+                        api.sendMessage("Error executing command!", threadID);
+                    }
+                } else {
+                    api.sendMessage(`Unknown command: ${commandName}\nUse ${PREFIX}help for command list`, threadID);
+                }
+            }
+        });
+    }
+);
+```
+
+---
+
+## 5. ERROR HANDLING & BEST PRACTICES
+
+### 5.1. Handle Checkpoint/Security Check
+
+When Facebook detects unusual activity, account may be checkpointed:
+
+```javascript
+login(credentials, (err, api) => {
+    if (err) {
+        switch (err.error) {
+            case "login-approval":
+                console.log("❗ 2FA code required");
+                // Handle 2FA
+                break;
+
+            case "checkpoint":
+                console.log("❌ Account checkpointed!");
+                console.log("Please login via browser and verify");
+                break;
+
+            default:
+                console.error("Login error:", err);
+        }
+        return;
+    }
+});
+```
+
+---
+
+### 5.2. Auto-save AppState
+
+```javascript
+// Save AppState every 10 minutes
+setInterval(() => {
+    try {
+        const appState = api.getAppState();
+        fs.writeFileSync("appstate.json", JSON.stringify(appState, null, 2));
+        console.log("🔄 AppState updated");
+    } catch (error) {
+        console.error("Error saving AppState:", error);
+    }
+}, 10 * 60 * 1000);
+```
+
+---
+
+### 5.3. Connection Error Handling
+
+```javascript
+api.listenMqtt((err, event) => {
+    if (err) {
+        console.error("Listen error:", err);
+
+        // Retry connection after 5 seconds
+        setTimeout(() => {
+            console.log("🔄 Reconnecting...");
+            api.listenMqtt(arguments.callee);
+        }, 5000);
+        return;
+    }
+
+    // Handle events normally
+});
+```
+
+---
+
+### 5.4. Rate Limiting (Avoid Spam)
+
+```javascript
+const MESSAGE_COOLDOWN = {}; // Store last message time
+
+function canSendMessage(threadID, cooldownTime = 1000) {
+    const now = Date.now();
+    const lastTime = MESSAGE_COOLDOWN[threadID] || 0;
+
+    if (now - lastTime < cooldownTime) {
+        return false;
+    }
+
+    MESSAGE_COOLDOWN[threadID] = now;
+    return true;
+}
+
+api.listenMqtt((err, event) => {
+    if (err) return console.error(err);
+
+    if (event.type === "message") {
+        // Check cooldown
+        if (!canSendMessage(event.threadID, 2000)) {
+            console.log("⏱️  On cooldown...");
+            return;
+        }
+
+        // Handle message
+        api.sendMessage("Response", event.threadID);
+    }
+});
+```
+
+---
+
+### 5.5. Logging and Debug
+
+```javascript
+// Enable detailed logging
+api.setOptions({
+    logLevel: "verbose"  // silent/error/warn/info/verbose
+});
+
+// Custom logger
+function log(type, message, data = {}) {
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] [${type.toUpperCase()}] ${message}`, data);
+}
+
+api.listenMqtt((err, event) => {
+    if (err) {
+        log("error", "Listen error", err);
+        return;
+    }
+
+    log("info", "New event", {
+        type: event.type,
+        threadID: event.threadID
+    });
+});
+```
+
+---
+
+### 5.6. Environment Variables for Credentials
+
+```javascript
+require('dotenv').config();
+
+const credentials = {
+    email: process.env.FB_EMAIL,
+    password: process.env.FB_PASSWORD
+};
+
+// Or use AppState
+const credentials = {
+    appState: JSON.parse(fs.readFileSync(process.env.APPSTATE_PATH, "utf8"))
+};
+```
+
+**.env file:**
+```
+FB_EMAIL=your_email@example.com
+FB_PASSWORD=your_password
+APPSTATE_PATH=./appstate.json
+```
+
+---
+
+## 6. IMPORTANT NOTES
+
+### ⚠️ Security Warnings
+
+1. **Never share AppState**: The `appstate.json` file contains login information, never make it public
+2. **Use .gitignore**: Add `appstate.json` to `.gitignore`
+3. **Avoid hardcoding passwords**: Use environment variables or config files
+4. **Keep dependencies updated**: Regularly update the package
+
+### 📝 Best Practices
+
+1. **Use AppState instead of email/password**: Reduces checkpoint risk
+2. **Don't spam**: Avoid sending too many messages in short time
+3. **Complete error handling**: Always have callbacks to handle errors
+4. **Rate limiting**: Limit number of messages/requests
+5. **Log activities**: Keep logs for debugging
+
+### 🚫 Avoid Getting Banned
+
+- Don't login/logout repeatedly
+- Don't mass message strangers
+- Don't send spam links
+- Use real browser User-Agent
+- Limit requests per minute
+- Be a responsible Facebook citizen
+
+---
+
+## 7. TROUBLESHOOTING
+
+### Error: "Wrong username/password"
+- Check email and password
+- Try logging in manually via browser
+- Account may be checkpointed
+
+### Error: "Login approval needed"
+- Account has 2FA enabled
+- Provide 2FA verification code
+
+### Error: "Checkpoint required"
+- Login to Facebook via browser
+- Complete verification steps
+- Get new AppState after verification
+
+### Bot not receiving messages
+- Check internet connection
+- Check logs for detailed errors
+- Try restarting bot
+- Update AppState
+
+### Messages sending too slowly
+- Implement message queue
+- Use rate limiting
+- Check network latency
+
+---
+
+## 8. ADVANCED FEATURES
+
+### 8.1. Message Queue System
+
+```javascript
+class MessageQueue {
+    constructor(api) {
+        this.api = api;
+        this.queue = [];
+        this.processing = false;
+        this.delay = 1000; // 1 second delay between messages
+    }
+
+    add(message, threadID, messageID) {
+        this.queue.push({ message, threadID, messageID });
+        if (!this.processing) {
+            this.process();
+        }
+    }
+
+    async process() {
+        this.processing = true;
+
+        while (this.queue.length > 0) {
+            const { message, threadID, messageID } = this.queue.shift();
+
+            await new Promise((resolve) => {
+                this.api.sendMessage(message, threadID, messageID, (err) => {
+                    if (err) console.error("Send error:", err);
+                    setTimeout(resolve, this.delay);
+                });
+            });
+        }
+
+        this.processing = false;
+    }
+}
+
+// Usage
+const messageQueue = new MessageQueue(api);
+
+api.listenMqtt((err, event) => {
+    if (err) return console.error(err);
+
+    if (event.type === "message") {
+        messageQueue.add("Response", event.threadID, event.messageID);
+    }
+});
+```
+
+---
+
+### 8.2. Multi-Account Bot Manager
+
+```javascript
+const fs = require("fs");
+const login = require("@dongdev/fca-unofficial");
+
+class BotManager {
+    constructor() {
+        this.bots = new Map();
+    }
+
+    async addBot(name, appStatePath) {
+        return new Promise((resolve, reject) => {
+            const credentials = {
+                appState: JSON.parse(fs.readFileSync(appStatePath, "utf8"))
+            };
+
+            login(credentials, (err, api) => {
+                if (err) {
+                    reject(err);
+                    return;
+                }
+
+                this.bots.set(name, api);
+                console.log(`✅ Bot "${name}" connected`);
+                resolve(api);
+            });
+        });
+    }
+
+    getBot(name) {
+        return this.bots.get(name);
+    }
+
+    getAllBots() {
+        return Array.from(this.bots.values());
+    }
+}
+
+// Usage
+const manager = new BotManager();
+
+(async () => {
+    await manager.addBot("bot1", "./appstate1.json");
+    await manager.addBot("bot2", "./appstate2.json");
+
+    const bot1 = manager.getBot("bot1");
+    const bot2 = manager.getBot("bot2");
+
+    // Use bots independently
+    bot1.sendMessage("Message from Bot 1", threadID);
+    bot2.sendMessage("Message from Bot 2", threadID);
+})();
+```
+
+---
+
+### 8.3. Database Integration (SQLite Example)
+
+```javascript
+const sqlite3 = require('sqlite3').verbose();
+const db = new sqlite3.Database('./bot.db');
+
+// Initialize database
+db.serialize(() => {
+    db.run(`CREATE TABLE IF NOT EXISTS users (
+        user_id TEXT PRIMARY KEY,
+        username TEXT,
+        message_count INTEGER DEFAULT 0,
+        last_interaction TEXT
+    )`);
+});
+
+// Track user messages
+function trackUser(userID, username) {
+    db.run(`
+        INSERT INTO users (user_id, username, message_count, last_interaction)
+        VALUES (?, ?, 1, datetime('now'))
+        ON CONFLICT(user_id) DO UPDATE SET
+            message_count = message_count + 1,
+            last_interaction = datetime('now')
+    `, [userID, username]);
+}
+
+// Get user stats
+function getUserStats(userID, callback) {
+    db.get('SELECT * FROM users WHERE user_id = ?', [userID], callback);
+}
+
+// Usage in bot
+api.listenMqtt((err, event) => {
+    if (err) return console.error(err);
+
+    if (event.type === "message") {
+        // Track user
+        api.getUserInfo(event.senderID, (err, info) => {
+            if (!err) {
+                const username = info[event.senderID].name;
+                trackUser(event.senderID, username);
+            }
+        });
+
+        // Stats command
+        if (event.body === "/stats") {
+            getUserStats(event.senderID, (err, row) => {
+                if (err || !row) return;
+
+                const stats = `
+📊 YOUR STATS
+━━━━━━━━━━━━
+Messages: ${row.message_count}
+Last seen: ${row.last_interaction}
+                `.trim();
+
+                api.sendMessage(stats, event.threadID);
+            });
+        }
+    }
+});
+```
+
+---
+
+## 9. RESOURCES
+
+- **GitHub Repository**: https://github.com/Donix-VN/fca-unofficial
+- **NPM Package**: @dongdev/fca-unofficial
+- **AppState Tool**: https://github.com/c3cbot/c3c-fbstate
+- **Facebook Developer Docs**: https://developers.facebook.com/docs/messenger-platform
+
+---
+
+## Conclusion
+
+This is a comprehensive documentation for **@dongdev/fca-unofficial** API methods. This library is very powerful but should be used carefully to avoid violating Facebook's policies and getting your account banned.
+
+**Happy bot coding! 🚀**
